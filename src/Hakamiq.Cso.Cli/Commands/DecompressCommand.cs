@@ -1,4 +1,4 @@
-using Hakamiq.Cso.Core.Formats.Cso;
+﻿using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -52,7 +52,9 @@ public static class DecompressCommand
             "InputNotFound" => CliExitCodes.InputNotFound,
             "UnsupportedDecompressionVersion" => CliExitCodes.UnsupportedCsoVersion,
             "OutputAlreadyExists" => CliExitCodes.OutputAlreadyExists,
-            "OutputAccessDenied" or "DecompressionIoFailed" => CliExitCodes.CannotWriteOutput,
+            "NotEnoughDiskSpace" => CliExitCodes.NotEnoughDiskSpace,
+            "SameInputOutputPath" or "OutputPathIsDirectory" or "InvalidOutputPath" => CliExitCodes.CannotWriteOutput,
+            "OutputAccessDenied" or "DecompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize"
                 => CliExitCodes.InvalidCsoHeader,
             "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile"
