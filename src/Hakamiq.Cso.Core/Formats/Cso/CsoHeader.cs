@@ -21,4 +21,8 @@ public sealed record CsoHeader(
             return checked((long)((UncompressedSize + BlockSize - 1) / BlockSize));
         }
     }
+
+    public long IndexEntryCount => checked(SectorCount + 1);
+
+    public long IndexTableSizeBytes => checked(IndexEntryCount * sizeof(uint));
 }

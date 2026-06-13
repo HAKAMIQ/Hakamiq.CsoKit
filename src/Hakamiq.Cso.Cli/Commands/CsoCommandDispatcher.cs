@@ -15,6 +15,7 @@ public static class CsoCommandDispatcher
         return command switch
         {
             "info" => InfoCommand.Run(args[1..]),
+            "verify" => VerifyCommand.Run(args[1..]),
             "--help" or "-h" or "help" => PrintHelpAndReturnSuccess(),
             "--version" or "-v" => PrintVersionAndReturnSuccess(),
             _ => UnknownCommand(command)
@@ -36,7 +37,7 @@ public static class CsoCommandDispatcher
 
     private static int PrintVersionAndReturnSuccess()
     {
-        Console.WriteLine("Hakamiq.CsoKit 0.1.0-dev");
+        Console.WriteLine("Hakamiq.CsoKit 0.2.0-dev");
         return CliExitCodes.Success;
     }
 
@@ -46,9 +47,11 @@ public static class CsoCommandDispatcher
         Console.WriteLine();
         Console.WriteLine("Usage:");
         Console.WriteLine("  hakamiq-cso info <input.cso>");
+        Console.WriteLine("  hakamiq-cso verify <input.cso>");
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  info       Read and print CSO header information.");
+        Console.WriteLine("  verify     Validate CSO header and index table.");
         Console.WriteLine();
         Console.WriteLine("Options:");
         Console.WriteLine("  --help     Show help.");
