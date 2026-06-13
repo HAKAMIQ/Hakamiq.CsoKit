@@ -9,4 +9,7 @@ public static class CliExitCodes
     public const int InvalidCsoHeader = 11;
     public const int UnsupportedCsoVersion = 12;
     public const int CorruptIndexTable = 13;
+    public const int OutputAlreadyExists = 14;
+    public const int CannotWriteOutput = 15;
+    public const int DecompressionFailed = 20;
 }
