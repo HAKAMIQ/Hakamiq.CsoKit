@@ -22,7 +22,7 @@ public static class DecompressCommand
             {
                 cancellation.Cancel();
 
-                if (!options.Quiet)
+                if (!options.Quiet && !options.Json)
                 {
                     Console.Error.WriteLine();
                     Console.Error.WriteLine("Cancellation requested. Cleaning up...");
@@ -34,15 +34,15 @@ public static class DecompressCommand
 
         try
         {
-            if (!options.Quiet)
+            if (!options.Quiet && !options.Json)
             {
                 Console.WriteLine("CSO Decompression");
                 Console.WriteLine("-----------------");
-                Console.WriteLine($"Input:  {Path.GetFullPath(options.InputPath)}");
-                Console.WriteLine($"Output: {Path.GetFullPath(options.OutputPath)}");
+                Console.WriteLine($"Input:  {SafeFullPath(options.InputPath)}");
+                Console.WriteLine($"Output: {SafeFullPath(options.OutputPath)}");
             }
 
-            ConsoleDecompressProgress? progress = options.Quiet
+            ConsoleDecompressProgress? progress = options.Quiet || options.Json
                 ? null
                 : new ConsoleDecompressProgress();
 
@@ -56,6 +56,30 @@ public static class DecompressCommand
                     progress));
 
             progress?.FinishLine();
+
+            if (options.Json)
+            {
+                JsonConsole.Write(new
+                {
+                    command = "decompress",
+                    success = result.Success,
+                    input = SafeFullPath(options.InputPath),
+                    output = SafeFullPath(options.OutputPath),
+                    force = options.Force,
+                    bytesWritten = result.BytesWritten,
+                    error = result.Success
+                        ? null
+                        : new
+                        {
+                            code = result.ErrorCode,
+                            message = result.ErrorMessage
+                        }
+                });
+
+                return result.Success
+                    ? CliExitCodes.Success
+                    : ToExitCode(result.ErrorCode);
+            }
 
             if (result.Success)
             {
@@ -94,6 +118,7 @@ public static class DecompressCommand
         string? outputPath = null;
         bool force = false;
         bool quiet = false;
+        bool json = false;
 
         for (int index = 1; index < args.Length; index++)
         {
@@ -124,6 +149,12 @@ public static class DecompressCommand
                 continue;
             }
 
+            if (string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                json = true;
+                continue;
+            }
+
             return false;
         }
 
@@ -137,7 +168,8 @@ public static class DecompressCommand
             inputPath,
             outputPath,
             force,
-            quiet);
+            quiet,
+            json);
 
         return true;
     }
@@ -161,16 +193,29 @@ public static class DecompressCommand
         };
     }
 
+    private static string SafeFullPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: hakamiq-cso decompress <input.cso> -o <output.iso> [--force] [--quiet]");
+        Console.Error.WriteLine("Usage: hakamiq-cso decompress <input.cso> -o <output.iso> [--force] [--quiet] [--json]");
     }
 
     private sealed record DecompressCommandOptions(
         string InputPath,
         string OutputPath,
         bool Force,
-        bool Quiet);
+        bool Quiet,
+        bool Json);
 
     private sealed class ConsoleDecompressProgress : IProgress<CsoDecompressProgress>
     {

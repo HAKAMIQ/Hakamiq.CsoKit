@@ -47,9 +47,9 @@ public static class CsoCommandDispatcher
         Console.WriteLine("Hakamiq.CsoKit");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  hakamiq-cso info <input.cso>");
-        Console.WriteLine("  hakamiq-cso verify <input.cso>");
-        Console.WriteLine("  hakamiq-cso decompress <input.cso> -o <output.iso> [--force] [--quiet]");
+        Console.WriteLine("  hakamiq-cso info <input.cso> [--json]");
+        Console.WriteLine("  hakamiq-cso verify <input.cso> [--json]");
+        Console.WriteLine("  hakamiq-cso decompress <input.cso> -o <output.iso> [--force] [--quiet] [--json]");
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  info        Read and print CSO header information.");
@@ -61,3 +61,4 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  --version   Show version.");
     }
 }
+
