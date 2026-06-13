@@ -8,12 +8,13 @@
     <AssemblyName>Hakamiq.Cso.Core</AssemblyName>
     <RootNamespace>Hakamiq.Cso.Core</RootNamespace>
 
-    <Version>0.4.0-beta.1</Version>
-    <PackageVersion>0.4.0-beta.1</PackageVersion>
-    <InformationalVersion>0.4.0-beta.1</InformationalVersion>
+    <Version>0.4.0-beta.2</Version>
+    <PackageVersion>0.4.0-beta.2</PackageVersion>
+    <InformationalVersion>0.4.0-beta.2</InformationalVersion>
     <Authors>HAKAMIQ</Authors>
     <Company>HAKAMIQ</Company>
     <Product>Hakamiq CsoKit</Product>
   </PropertyGroup>
 
 </Project>
+

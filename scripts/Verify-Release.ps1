@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.4.0-beta.1",
+    [string]$Version = "0.4.0-beta.2",
     [string]$Runtime = "win-x64"
 )
 
@@ -78,3 +78,4 @@ if ($manifestLines.Count -lt 3) {
 Write-Host "[PASS] Release verification completed"
 Write-Host "Executable: $ExePath"
 Write-Host "ZIP:        $ZipPath"
+

@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.4.0-beta.1"
+    [string]$Version = "0.4.0-beta.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,3 +88,4 @@ Remove-Item $stagingDir -Recurse -Force
 
 Write-Host "[PASS] Source package created"
 Write-Host "ZipPath: $ZipPath"
+

@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   push:
@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version without leading v, for example 0.4.0-beta.1"
+        description: "Release version without leading v, for example 0.4.0-beta.2"
         required: true
-        default: "0.4.0-beta.1"
+        default: "0.4.0-beta.2"
 
 permissions:
   contents: write
@@ -90,3 +90,4 @@ jobs:
             $shaPath `
             --title "Hakamiq CsoKit $env:RELEASE_VERSION" `
             --notes "Hakamiq CsoKit $env:RELEASE_VERSION win-x64 release package."
+

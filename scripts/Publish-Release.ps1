@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.4.0-beta.1",
+    [string]$Version = "0.4.0-beta.2",
     [string]$Runtime = "win-x64"
 )
 
@@ -150,3 +150,4 @@ Write-Host ""
 Write-Host "[PASS] Release package created"
 Write-Host "PublishDir: $PublishDir"
 Write-Host "ZipPath:    $ZipPath"
+
