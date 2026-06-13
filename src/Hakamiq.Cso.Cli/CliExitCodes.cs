@@ -13,4 +13,5 @@ public static class CliExitCodes
     public const int CannotWriteOutput = 15;
     public const int NotEnoughDiskSpace = 16;
     public const int DecompressionFailed = 20;
+    public const int OperationCanceled = 130;
 }
