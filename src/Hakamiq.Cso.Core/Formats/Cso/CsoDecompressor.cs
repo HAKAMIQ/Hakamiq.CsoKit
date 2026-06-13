@@ -1,0 +1,305 @@
+﻿using System.IO.Compression;
+
+namespace Hakamiq.Cso.Core.Formats.Cso;
+
+public sealed class CsoDecompressor
+{
+    private readonly CsoVerifier verifier = new();
+
+    public CsoDecompressResult Decompress(CsoDecompressOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (string.IsNullOrWhiteSpace(options.InputPath))
+        {
+            return CsoDecompressResult.Fail("InvalidInputPath", "Input path is empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.OutputPath))
+        {
+            return CsoDecompressResult.Fail("InvalidOutputPath", "Output path is empty.");
+        }
+
+        if (!File.Exists(options.InputPath))
+        {
+            return CsoDecompressResult.Fail("InputNotFound", "Input file was not found.");
+        }
+
+        if (File.Exists(options.OutputPath) && !options.ForceOverwrite)
+        {
+            return CsoDecompressResult.Fail("OutputAlreadyExists", "Output file already exists. Use --force to overwrite.");
+        }
+
+        CsoVerificationResult verification = verifier.Verify(options.InputPath);
+
+        if (!verification.Success || verification.Header is null || verification.Entries.Count == 0)
+        {
+            string message = verification.Issues.FirstOrDefault()?.Message ?? "CSO verification failed.";
+            string code = verification.Issues.FirstOrDefault()?.Code ?? "VerificationFailed";
+            return CsoDecompressResult.Fail(code, message);
+        }
+
+        CsoHeader header = verification.Header;
+
+        if (header.Version != 1)
+        {
+            return CsoDecompressResult.Fail(
+                "UnsupportedDecompressionVersion",
+                $"CSO decompression currently supports version 1 only. File version: {header.Version}.");
+        }
+
+        if (header.BlockSize > int.MaxValue)
+        {
+            return CsoDecompressResult.Fail("BlockSizeTooLarge", "CSO block size is too large.");
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)) ?? ".");
+
+        string tempOutputPath = options.OutputPath + ".tmp";
+
+        try
+        {
+            if (File.Exists(tempOutputPath))
+            {
+                File.Delete(tempOutputPath);
+            }
+
+            ulong bytesWritten;
+
+            using (FileStream input = new(
+                options.InputPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 1024 * 128,
+                FileOptions.SequentialScan))
+            {
+                using FileStream output = new(
+                    tempOutputPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 1024 * 128,
+                    FileOptions.SequentialScan);
+
+                bytesWritten = DecompressBlocks(input, output, header, verification.Entries);
+
+                output.Flush(true);
+            }
+
+            if (File.Exists(options.OutputPath))
+            {
+                File.Delete(options.OutputPath);
+            }
+
+            File.Move(tempOutputPath, options.OutputPath);
+
+            return CsoDecompressResult.Ok(bytesWritten);
+        }
+        catch (InvalidDataException ex)
+        {
+            SafeDelete(tempOutputPath);
+            return CsoDecompressResult.Fail("InvalidCompressedData", ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            SafeDelete(tempOutputPath);
+            return CsoDecompressResult.Fail("OutputAccessDenied", ex.Message);
+        }
+        catch (IOException ex)
+        {
+            SafeDelete(tempOutputPath);
+            return CsoDecompressResult.Fail("DecompressionIoFailed", ex.Message);
+        }
+    }
+
+    private static ulong DecompressBlocks(
+        FileStream input,
+        FileStream output,
+        CsoHeader header,
+        IReadOnlyList<CsoIndexEntry> entries)
+    {
+        int blockSize = checked((int)header.BlockSize);
+        byte[] outputBuffer = new byte[blockSize];
+        ulong totalWritten = 0;
+
+        for (int blockIndex = 0; blockIndex < header.SectorCount; blockIndex++)
+        {
+            CsoIndexEntry current = entries[blockIndex];
+            CsoIndexEntry next = entries[blockIndex + 1];
+
+            if (next.Offset < current.Offset)
+            {
+                throw new InvalidDataException($"CSO index offsets are not monotonic at block {blockIndex:N0}.");
+            }
+
+            ulong remaining = header.UncompressedSize - totalWritten;
+            int expectedBlockBytes = checked((int)Math.Min((ulong)blockSize, remaining));
+
+            if (expectedBlockBytes <= 0)
+            {
+                break;
+            }
+
+            input.Position = checked((long)current.Offset);
+
+            if (current.HasFlag)
+            {
+                ReadExactly(input, outputBuffer.AsSpan(0, expectedBlockBytes));
+                output.Write(outputBuffer, 0, expectedBlockBytes);
+            }
+            else
+            {
+                ulong compressedSize64 = next.Offset - current.Offset;
+
+                if (compressedSize64 == 0 || compressedSize64 > int.MaxValue)
+                {
+                    throw new InvalidDataException($"Invalid compressed block size at block {blockIndex:N0}.");
+                }
+
+                int compressedSize = checked((int)compressedSize64);
+                byte[] compressedBuffer = new byte[compressedSize];
+
+                ReadExactly(input, compressedBuffer);
+
+                int decompressed = DecompressBlock(
+                    compressedBuffer,
+                    outputBuffer.AsSpan(0, expectedBlockBytes),
+                    blockIndex);
+
+                if (decompressed != expectedBlockBytes)
+                {
+                    throw new InvalidDataException(
+                        $"Decompressed block {blockIndex:N0} produced {decompressed:N0} bytes, expected {expectedBlockBytes:N0} bytes.");
+                }
+
+                output.Write(outputBuffer, 0, expectedBlockBytes);
+            }
+
+            totalWritten += (ulong)expectedBlockBytes;
+        }
+
+        if (totalWritten != header.UncompressedSize)
+        {
+            throw new InvalidDataException(
+                $"Decompressed size mismatch. Written {totalWritten:N0} bytes, expected {header.UncompressedSize:N0} bytes.");
+        }
+
+        return totalWritten;
+    }
+
+    private static int DecompressBlock(
+        byte[] compressedBuffer,
+        Span<byte> outputBuffer,
+        int blockIndex)
+    {
+        if (TryDecompressWithZLib(compressedBuffer, outputBuffer, out int zlibBytes) &&
+            zlibBytes == outputBuffer.Length)
+        {
+            return zlibBytes;
+        }
+
+        if (TryDecompressWithDeflate(compressedBuffer, outputBuffer, out int deflateBytes) &&
+            deflateBytes == outputBuffer.Length)
+        {
+            return deflateBytes;
+        }
+
+        throw new InvalidDataException(
+            $"Compressed CSO block {blockIndex:N0} could not be decompressed as zlib or raw deflate.");
+    }
+
+    private static bool TryDecompressWithZLib(
+        byte[] compressedBuffer,
+        Span<byte> outputBuffer,
+        out int bytesWritten)
+    {
+        bytesWritten = 0;
+
+        try
+        {
+            using MemoryStream compressedStream = new(compressedBuffer);
+            using ZLibStream zlib = new(compressedStream, CompressionMode.Decompress);
+
+            bytesWritten = ReadExactlyOrLess(zlib, outputBuffer);
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryDecompressWithDeflate(
+        byte[] compressedBuffer,
+        Span<byte> outputBuffer,
+        out int bytesWritten)
+    {
+        bytesWritten = 0;
+
+        try
+        {
+            using MemoryStream compressedStream = new(compressedBuffer);
+            using DeflateStream deflate = new(compressedStream, CompressionMode.Decompress);
+
+            bytesWritten = ReadExactlyOrLess(deflate, outputBuffer);
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    private static void ReadExactly(Stream stream, Span<byte> buffer)
+    {
+        int read = ReadExactlyOrLess(stream, buffer);
+
+        if (read != buffer.Length)
+        {
+            throw new EndOfStreamException($"Unexpected end of stream. Expected {buffer.Length:N0} bytes, got {read:N0}.");
+        }
+    }
+
+    private static int ReadExactlyOrLess(Stream stream, Span<byte> buffer)
+    {
+        int totalRead = 0;
+
+        while (totalRead < buffer.Length)
+        {
+            int read = stream.Read(buffer[totalRead..]);
+
+            if (read == 0)
+            {
+                break;
+            }
+
+            totalRead += read;
+        }
+
+        return totalRead;
+    }
+
+    private static void SafeDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup only.
+        }
+    }
+}
