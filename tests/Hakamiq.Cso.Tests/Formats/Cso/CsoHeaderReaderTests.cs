@@ -30,6 +30,68 @@ public sealed class CsoHeaderReaderTests
         Assert.Equal(358400, result.Header.SectorCount);
     }
 
+
+    [Fact]
+    public void Read_WithLegacyCsoV1VersionZero_ReturnsHeader()
+    {
+        byte[] bytes = CreateHeader(
+            headerSize: 24,
+            uncompressedSize: 4096,
+            blockSize: 2048,
+            version: 0,
+            indexShift: 0);
+
+        CsoHeaderReader reader = new();
+
+        using MemoryStream stream = new(bytes);
+        CsoHeaderReadResult result = reader.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Header);
+        Assert.Equal((byte)0, result.Header.Version);
+        Assert.True(result.Header.IsCsoV1);
+    }
+
+    [Fact]
+    public void Read_WithUnreliableCsoV1HeaderSize_UsesMinimumEffectiveHeaderSize()
+    {
+        byte[] bytes = CreateHeader(
+            headerSize: 0,
+            uncompressedSize: 4096,
+            blockSize: 2048,
+            version: 1,
+            indexShift: 0);
+
+        CsoHeaderReader reader = new();
+
+        using MemoryStream stream = new(bytes);
+        CsoHeaderReadResult result = reader.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Header);
+        Assert.Equal((uint)0, result.Header.HeaderSize);
+        Assert.Equal((uint)CsoConstants.MinimumHeaderSize, result.Header.EffectiveHeaderSize);
+    }
+
+    [Fact]
+    public void Read_WithInvalidCsoV2HeaderSize_ReturnsInvalidHeaderSize()
+    {
+        byte[] bytes = CreateHeader(
+            headerSize: 0,
+            uncompressedSize: 4096,
+            blockSize: 2048,
+            version: 2,
+            indexShift: 0);
+
+        CsoHeaderReader reader = new();
+
+        using MemoryStream stream = new(bytes);
+        CsoHeaderReadResult result = reader.Read(stream);
+
+        Assert.False(result.Success);
+        Assert.Equal("InvalidHeaderSize", result.ErrorCode);
+    }
+
     [Fact]
     public void Read_WithInvalidMagic_ReturnsInvalidMagic()
     {

@@ -1,4 +1,4 @@
-﻿name: Release
+name: Release
 
 on:
   push:
@@ -62,7 +62,7 @@ jobs:
         run: .\scripts\Verify-Release.ps1 -Version $env:RELEASE_VERSION -Runtime win-x64
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: hakamiq-csokit-${{ env.RELEASE_VERSION }}-win-x64
           path: |

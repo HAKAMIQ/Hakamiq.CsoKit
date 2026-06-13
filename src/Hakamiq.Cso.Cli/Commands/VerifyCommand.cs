@@ -1,4 +1,4 @@
-﻿using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -28,6 +28,7 @@ public static class VerifyCommand
                     {
                         version = result.Header.Version,
                         headerSize = result.Header.HeaderSize,
+                        effectiveHeaderSize = result.Header.EffectiveHeaderSize,
                         uncompressedSize = result.Header.UncompressedSize,
                         blockSize = result.Header.BlockSize,
                         sectorCount = result.Header.SectorCount,
@@ -116,10 +117,10 @@ public static class VerifyCommand
         return errorCode switch
         {
             "InputNotFound" => CliExitCodes.InputNotFound,
-            "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize"
+            "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidIndexShift"
                 => CliExitCodes.InvalidCsoHeader,
-            "UnsupportedCsoVersion" => CliExitCodes.UnsupportedCsoVersion,
-            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile"
+            "UnsupportedVersion" or "UnsupportedCsoVersion" => CliExitCodes.UnsupportedCsoVersion,
+            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile" or "FinalOffsetPastEndOfFile" or "FirstDataOffsetBeforeIndexEnd" or "IndexEntryCountMismatch"
                 => CliExitCodes.CorruptIndexTable,
             _ => CliExitCodes.GeneralFailure
         };

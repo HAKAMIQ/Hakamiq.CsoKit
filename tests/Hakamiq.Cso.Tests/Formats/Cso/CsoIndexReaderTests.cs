@@ -34,6 +34,37 @@ public sealed class CsoIndexReaderTests
         Assert.Equal((ulong)200, indexResult.Entries[2].Offset);
     }
 
+
+    [Fact]
+    public void Read_WithUnreliableCsoV1HeaderSize_ReadsIndexFromEffectiveHeaderSize()
+    {
+        byte[] bytes = CreateCsoLikeFile(
+            uncompressedSize: 4096,
+            blockSize: 2048,
+            version: 1,
+            indexShift: 0,
+            rawEntries: [36, 100, 200],
+            dataLength: 200,
+            headerSize: 4096);
+
+        CsoHeaderReader headerReader = new();
+        using MemoryStream headerStream = new(bytes);
+        CsoHeaderReadResult headerResult = headerReader.Read(headerStream);
+
+        Assert.True(headerResult.Success);
+        Assert.NotNull(headerResult.Header);
+        Assert.Equal((uint)4096, headerResult.Header.HeaderSize);
+        Assert.Equal((uint)CsoConstants.MinimumHeaderSize, headerResult.Header.EffectiveHeaderSize);
+
+        CsoIndexReader indexReader = new();
+        using MemoryStream indexStream = new(bytes);
+        CsoIndexReadResult indexResult = indexReader.Read(indexStream, headerResult.Header);
+
+        Assert.True(indexResult.Success);
+        Assert.Equal(3, indexResult.Entries.Count);
+        Assert.Equal((ulong)36, indexResult.Entries[0].Offset);
+    }
+
     [Fact]
     public void Read_WithTruncatedIndex_ReturnsIndexTableTruncated()
     {
@@ -62,10 +93,11 @@ public sealed class CsoIndexReaderTests
         ulong uncompressedSize,
         uint blockSize,
         byte version,
-        byte indexShift)
+        byte indexShift,
+        uint headerSize = CsoConstants.MinimumHeaderSize)
     {
         byte[] bytes = new byte[CsoConstants.MinimumHeaderSize];
-        WriteHeader(bytes, uncompressedSize, blockSize, version, indexShift);
+        WriteHeader(bytes, uncompressedSize, blockSize, version, indexShift, headerSize);
         return bytes;
     }
 
@@ -75,13 +107,14 @@ public sealed class CsoIndexReaderTests
         byte version,
         byte indexShift,
         uint[] rawEntries,
-        int dataLength)
+        int dataLength,
+        uint headerSize = CsoConstants.MinimumHeaderSize)
     {
         int indexSize = rawEntries.Length * sizeof(uint);
         int totalLength = Math.Max(CsoConstants.MinimumHeaderSize + indexSize, dataLength);
         byte[] bytes = new byte[totalLength];
 
-        WriteHeader(bytes, uncompressedSize, blockSize, version, indexShift);
+        WriteHeader(bytes, uncompressedSize, blockSize, version, indexShift, headerSize);
 
         int offset = CsoConstants.MinimumHeaderSize;
 
@@ -99,14 +132,15 @@ public sealed class CsoIndexReaderTests
         ulong uncompressedSize,
         uint blockSize,
         byte version,
-        byte indexShift)
+        byte indexShift,
+        uint headerSize = CsoConstants.MinimumHeaderSize)
     {
         bytes[0] = (byte)'C';
         bytes[1] = (byte)'I';
         bytes[2] = (byte)'S';
         bytes[3] = (byte)'O';
 
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4, 4), 24);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4, 4), headerSize);
         BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(8, 8), uncompressedSize);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(16, 4), blockSize);
 

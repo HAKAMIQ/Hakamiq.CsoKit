@@ -7,7 +7,15 @@ public sealed record CsoHeader(
     byte Version,
     byte IndexShift)
 {
-    public bool IsVersionSupported => Version is 1 or 2;
+    public bool IsCsoV1 => Version is 0 or 1;
+
+    public bool IsCsoV2 => Version == 2;
+
+    public bool IsVersionSupported => IsCsoV1 || IsCsoV2;
+
+    public uint EffectiveHeaderSize => IsCsoV1
+        ? CsoConstants.MinimumHeaderSize
+        : HeaderSize;
 
     public long SectorCount
     {

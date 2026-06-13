@@ -1,4 +1,4 @@
-﻿using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -179,15 +179,15 @@ public static class DecompressCommand
         return errorCode switch
         {
             "InputNotFound" => CliExitCodes.InputNotFound,
-            "UnsupportedDecompressionVersion" => CliExitCodes.UnsupportedCsoVersion,
+            "UnsupportedVersion" or "UnsupportedCsoVersion" or "UnsupportedDecompressionVersion" => CliExitCodes.UnsupportedCsoVersion,
             "OutputAlreadyExists" => CliExitCodes.OutputAlreadyExists,
             "NotEnoughDiskSpace" => CliExitCodes.NotEnoughDiskSpace,
             "OperationCanceled" => CliExitCodes.OperationCanceled,
             "SameInputOutputPath" or "OutputPathIsDirectory" or "InvalidOutputPath" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "DecompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
-            "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize"
+            "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidIndexShift"
                 => CliExitCodes.InvalidCsoHeader,
-            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile"
+            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile" or "FinalOffsetPastEndOfFile" or "FirstDataOffsetBeforeIndexEnd" or "IndexEntryCountMismatch"
                 => CliExitCodes.CorruptIndexTable,
             _ => CliExitCodes.DecompressionFailed
         };

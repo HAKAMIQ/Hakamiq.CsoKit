@@ -1,4 +1,6 @@
-﻿namespace Hakamiq.Cso.Cli.Commands;
+using System.Reflection;
+
+namespace Hakamiq.Cso.Cli.Commands;
 
 public static class CsoCommandDispatcher
 {
@@ -38,7 +40,13 @@ public static class CsoCommandDispatcher
 
     private static int PrintVersionAndReturnSuccess()
     {
-        Console.WriteLine("Hakamiq.CsoKit 0.4.0-beta.1");
+        string version = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion
+            ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
+            ?? "unknown";
+
+        Console.WriteLine($"Hakamiq.CsoKit {version}");
         return CliExitCodes.Success;
     }
 
@@ -61,5 +69,3 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  --version   Show version.");
     }
 }
-
-

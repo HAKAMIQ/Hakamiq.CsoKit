@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
         run: .\scripts\Verify-Release.ps1
 
       - name: Upload release ZIP artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: hakamiq-csokit-win-x64
           path: artifacts/release/*.zip

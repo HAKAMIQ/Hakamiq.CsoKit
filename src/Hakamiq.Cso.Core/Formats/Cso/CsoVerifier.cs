@@ -76,7 +76,7 @@ public sealed class CsoVerifier
             return issues;
         }
 
-        long indexEnd = checked((long)header.HeaderSize + header.IndexTableSizeBytes);
+        long indexEnd = checked((long)header.EffectiveHeaderSize + header.IndexTableSizeBytes);
 
         if (entries[0].Offset < (ulong)indexEnd)
         {

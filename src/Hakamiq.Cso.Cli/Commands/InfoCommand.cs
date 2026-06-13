@@ -1,4 +1,4 @@
-﻿using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -56,6 +56,7 @@ public static class InfoCommand
                 {
                     version = header.Version,
                     headerSize = header.HeaderSize,
+                    effectiveHeaderSize = header.EffectiveHeaderSize,
                     uncompressedSize = header.UncompressedSize,
                     blockSize = header.BlockSize,
                     sectorCount = header.SectorCount,
@@ -73,6 +74,7 @@ public static class InfoCommand
         Console.WriteLine($"Input:              {SafeFullPath(options.InputPath)}");
         Console.WriteLine($"Version:            {header.Version}");
         Console.WriteLine($"Header size:        {header.HeaderSize:N0}");
+        Console.WriteLine($"Effective header:   {header.EffectiveHeaderSize:N0}");
         Console.WriteLine($"Uncompressed size:  {header.UncompressedSize:N0}");
         Console.WriteLine($"Block size:         {header.BlockSize:N0}");
         Console.WriteLine($"Sector count:       {header.SectorCount:N0}");
@@ -122,8 +124,9 @@ public static class InfoCommand
         return errorCode switch
         {
             "InputNotFound" => CliExitCodes.InputNotFound,
-            "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize"
+            "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidIndexShift"
                 => CliExitCodes.InvalidCsoHeader,
+            "UnsupportedVersion" or "UnsupportedCsoVersion" => CliExitCodes.UnsupportedCsoVersion,
             _ => CliExitCodes.GeneralFailure
         };
     }

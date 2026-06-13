@@ -1,4 +1,4 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -51,16 +51,18 @@ public sealed class CsoDecompressor
 
             CsoHeader header = verification.Header;
 
-            if (header.Version != 1)
+            if (!header.IsCsoV1)
             {
                 return CsoDecompressResult.Fail(
                     "UnsupportedDecompressionVersion",
-                    $"CSO decompression currently supports version 1 only. File version: {header.Version}.");
+                    $"CSO decompression currently supports CSO v1 only. File version: {header.Version}.");
             }
 
-            if (header.BlockSize > int.MaxValue)
+            if (header.BlockSize > CsoConstants.MaxSupportedBlockSize)
             {
-                return CsoDecompressResult.Fail("BlockSizeTooLarge", "CSO block size is too large.");
+                return CsoDecompressResult.Fail(
+                    "BlockSizeTooLarge",
+                    $"CSO block size is too large. Maximum supported block size is {CsoConstants.MaxSupportedBlockSize:N0} bytes.");
             }
 
             ulong requiredBytes = AddSafetyBuffer(header.UncompressedSize);
@@ -73,17 +75,13 @@ public sealed class CsoDecompressor
                     diskSpace.ErrorMessage ?? "Disk space preflight failed.");
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)) ?? ".");
+            string fullOutputPath = Path.GetFullPath(options.OutputPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? ".");
 
-            string tempOutputPath = options.OutputPath + ".tmp";
+            string tempOutputPath = CreateUniqueTempOutputPath(fullOutputPath);
 
             try
             {
-                if (File.Exists(tempOutputPath))
-                {
-                    File.Delete(tempOutputPath);
-                }
-
                 ulong bytesWritten;
 
                 using (FileStream input = new(
@@ -115,12 +113,7 @@ public sealed class CsoDecompressor
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (File.Exists(options.OutputPath))
-                {
-                    File.Delete(options.OutputPath);
-                }
-
-                File.Move(tempOutputPath, options.OutputPath);
+                File.Move(tempOutputPath, fullOutputPath, overwrite: options.ForceOverwrite);
 
                 return CsoDecompressResult.Ok(bytesWritten);
             }
@@ -149,6 +142,14 @@ public sealed class CsoDecompressor
         {
             return CsoDecompressResult.Fail("OperationCanceled", "Operation was canceled.");
         }
+    }
+
+    private static string CreateUniqueTempOutputPath(string fullOutputPath)
+    {
+        string directory = Path.GetDirectoryName(fullOutputPath) ?? ".";
+        string fileName = Path.GetFileName(fullOutputPath);
+
+        return Path.Combine(directory, $".{fileName}.{Guid.NewGuid():N}.tmp");
     }
 
     private static ulong AddSafetyBuffer(ulong uncompressedSize)

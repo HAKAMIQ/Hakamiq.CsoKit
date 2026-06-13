@@ -65,7 +65,14 @@ public sealed class CsoHeaderReader
         byte version = headerBytes[20];
         byte indexShift = headerBytes[21];
 
-        if (headerSize < CsoConstants.MinimumHeaderSize)
+        if (version is not (0 or 1 or 2))
+        {
+            return CsoHeaderReadResult.Fail(
+                "UnsupportedVersion",
+                $"Unsupported CSO version: {version}.");
+        }
+
+        if (version == 2 && headerSize < CsoConstants.MinimumHeaderSize)
         {
             return CsoHeaderReadResult.Fail(
                 "InvalidHeaderSize",
@@ -86,11 +93,18 @@ public sealed class CsoHeaderReader
                 "CSO block size is zero.");
         }
 
-        if (version is not (1 or 2))
+        if (blockSize > CsoConstants.MaxSupportedBlockSize)
         {
             return CsoHeaderReadResult.Fail(
-                "UnsupportedVersion",
-                $"Unsupported CSO version: {version}.");
+                "BlockSizeTooLarge",
+                $"CSO block size is too large. Maximum supported block size is {CsoConstants.MaxSupportedBlockSize:N0} bytes.");
+        }
+
+        if (indexShift > CsoConstants.MaxSupportedIndexShift)
+        {
+            return CsoHeaderReadResult.Fail(
+                "InvalidIndexShift",
+                $"CSO index shift is too large. Maximum supported shift is {CsoConstants.MaxSupportedIndexShift}.");
         }
 
         CsoHeader header = new(

@@ -65,7 +65,7 @@ public sealed class CsoIndexReader
             return CsoIndexReadResult.Fail("TooManyIndexEntries", "CSO index table is too large.");
         }
 
-        long indexStart = header.HeaderSize;
+        long indexStart = header.EffectiveHeaderSize;
         long indexSize = header.IndexTableSizeBytes;
         long indexEnd = checked(indexStart + indexSize);
 
