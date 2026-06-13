@@ -1,1 +1,3 @@
-﻿Console.WriteLine("Hello, World!");
+﻿using Hakamiq.Cso.Cli.Commands;
+
+return CsoCommandDispatcher.Run(args);
