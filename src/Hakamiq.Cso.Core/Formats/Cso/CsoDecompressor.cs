@@ -5,6 +5,7 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 public sealed class CsoDecompressor
 {
     private const ulong OutputSafetyBufferBytes = 64UL * 1024UL * 1024UL;
+    private const int ProgressReportBlockInterval = 256;
 
     private readonly CsoVerifier verifier = new();
     private readonly CsoOutputSafetyPolicy outputSafetyPolicy = new();
@@ -14,113 +15,139 @@ public sealed class CsoDecompressor
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        CsoOutputSafetyResult outputSafety = outputSafetyPolicy.Validate(
-            options.InputPath,
-            options.OutputPath,
-            options.ForceOverwrite);
-
-        if (!outputSafety.Success)
-        {
-            return CsoDecompressResult.Fail(
-                outputSafety.ErrorCode ?? "OutputSafetyFailed",
-                outputSafety.ErrorMessage ?? "Output safety validation failed.");
-        }
-
-        if (!File.Exists(options.InputPath))
-        {
-            return CsoDecompressResult.Fail("InputNotFound", "Input file was not found.");
-        }
-
-        CsoVerificationResult verification = verifier.Verify(options.InputPath);
-
-        if (!verification.Success || verification.Header is null || verification.Entries.Count == 0)
-        {
-            string message = verification.Issues.FirstOrDefault()?.Message ?? "CSO verification failed.";
-            string code = verification.Issues.FirstOrDefault()?.Code ?? "VerificationFailed";
-            return CsoDecompressResult.Fail(code, message);
-        }
-
-        CsoHeader header = verification.Header;
-
-        if (header.Version != 1)
-        {
-            return CsoDecompressResult.Fail(
-                "UnsupportedDecompressionVersion",
-                $"CSO decompression currently supports version 1 only. File version: {header.Version}.");
-        }
-
-        if (header.BlockSize > int.MaxValue)
-        {
-            return CsoDecompressResult.Fail("BlockSizeTooLarge", "CSO block size is too large.");
-        }
-
-        ulong requiredBytes = AddSafetyBuffer(header.UncompressedSize);
-        CsoDiskSpacePreflightResult diskSpace = diskSpacePreflight.CheckOutputSpace(options.OutputPath, requiredBytes);
-
-        if (!diskSpace.Success)
-        {
-            return CsoDecompressResult.Fail(
-                diskSpace.ErrorCode ?? "DiskSpacePreflightFailed",
-                diskSpace.ErrorMessage ?? "Disk space preflight failed.");
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)) ?? ".");
-
-        string tempOutputPath = options.OutputPath + ".tmp";
+        CancellationToken cancellationToken = options.CancellationToken;
 
         try
         {
-            if (File.Exists(tempOutputPath))
-            {
-                File.Delete(tempOutputPath);
-            }
+            cancellationToken.ThrowIfCancellationRequested();
 
-            ulong bytesWritten;
-
-            using (FileStream input = new(
+            CsoOutputSafetyResult outputSafety = outputSafetyPolicy.Validate(
                 options.InputPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 1024 * 128,
-                FileOptions.SequentialScan))
+                options.OutputPath,
+                options.ForceOverwrite);
+
+            if (!outputSafety.Success)
             {
-                using FileStream output = new(
-                    tempOutputPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
+                return CsoDecompressResult.Fail(
+                    outputSafety.ErrorCode ?? "OutputSafetyFailed",
+                    outputSafety.ErrorMessage ?? "Output safety validation failed.");
+            }
+
+            if (!File.Exists(options.InputPath))
+            {
+                return CsoDecompressResult.Fail("InputNotFound", "Input file was not found.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            CsoVerificationResult verification = verifier.Verify(options.InputPath);
+
+            if (!verification.Success || verification.Header is null || verification.Entries.Count == 0)
+            {
+                string message = verification.Issues.FirstOrDefault()?.Message ?? "CSO verification failed.";
+                string code = verification.Issues.FirstOrDefault()?.Code ?? "VerificationFailed";
+                return CsoDecompressResult.Fail(code, message);
+            }
+
+            CsoHeader header = verification.Header;
+
+            if (header.Version != 1)
+            {
+                return CsoDecompressResult.Fail(
+                    "UnsupportedDecompressionVersion",
+                    $"CSO decompression currently supports version 1 only. File version: {header.Version}.");
+            }
+
+            if (header.BlockSize > int.MaxValue)
+            {
+                return CsoDecompressResult.Fail("BlockSizeTooLarge", "CSO block size is too large.");
+            }
+
+            ulong requiredBytes = AddSafetyBuffer(header.UncompressedSize);
+            CsoDiskSpacePreflightResult diskSpace = diskSpacePreflight.CheckOutputSpace(options.OutputPath, requiredBytes);
+
+            if (!diskSpace.Success)
+            {
+                return CsoDecompressResult.Fail(
+                    diskSpace.ErrorCode ?? "DiskSpacePreflightFailed",
+                    diskSpace.ErrorMessage ?? "Disk space preflight failed.");
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)) ?? ".");
+
+            string tempOutputPath = options.OutputPath + ".tmp";
+
+            try
+            {
+                if (File.Exists(tempOutputPath))
+                {
+                    File.Delete(tempOutputPath);
+                }
+
+                ulong bytesWritten;
+
+                using (FileStream input = new(
+                    options.InputPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
                     bufferSize: 1024 * 128,
-                    FileOptions.SequentialScan);
+                    FileOptions.SequentialScan))
+                {
+                    using FileStream output = new(
+                        tempOutputPath,
+                        FileMode.CreateNew,
+                        FileAccess.Write,
+                        FileShare.None,
+                        bufferSize: 1024 * 128,
+                        FileOptions.SequentialScan);
 
-                bytesWritten = DecompressBlocks(input, output, header, verification.Entries);
+                    bytesWritten = DecompressBlocks(
+                        input,
+                        output,
+                        header,
+                        verification.Entries,
+                        cancellationToken,
+                        options.Progress);
 
-                output.Flush(true);
+                    output.Flush(true);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (File.Exists(options.OutputPath))
+                {
+                    File.Delete(options.OutputPath);
+                }
+
+                File.Move(tempOutputPath, options.OutputPath);
+
+                return CsoDecompressResult.Ok(bytesWritten);
             }
-
-            if (File.Exists(options.OutputPath))
+            catch (OperationCanceledException)
             {
-                File.Delete(options.OutputPath);
+                SafeDelete(tempOutputPath);
+                return CsoDecompressResult.Fail("OperationCanceled", "Operation was canceled.");
             }
-
-            File.Move(tempOutputPath, options.OutputPath);
-
-            return CsoDecompressResult.Ok(bytesWritten);
+            catch (InvalidDataException ex)
+            {
+                SafeDelete(tempOutputPath);
+                return CsoDecompressResult.Fail("InvalidCompressedData", ex.Message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                SafeDelete(tempOutputPath);
+                return CsoDecompressResult.Fail("OutputAccessDenied", ex.Message);
+            }
+            catch (IOException ex)
+            {
+                SafeDelete(tempOutputPath);
+                return CsoDecompressResult.Fail("DecompressionIoFailed", ex.Message);
+            }
         }
-        catch (InvalidDataException ex)
+        catch (OperationCanceledException)
         {
-            SafeDelete(tempOutputPath);
-            return CsoDecompressResult.Fail("InvalidCompressedData", ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            SafeDelete(tempOutputPath);
-            return CsoDecompressResult.Fail("OutputAccessDenied", ex.Message);
-        }
-        catch (IOException ex)
-        {
-            SafeDelete(tempOutputPath);
-            return CsoDecompressResult.Fail("DecompressionIoFailed", ex.Message);
+            return CsoDecompressResult.Fail("OperationCanceled", "Operation was canceled.");
         }
     }
 
@@ -138,14 +165,21 @@ public sealed class CsoDecompressor
         FileStream input,
         FileStream output,
         CsoHeader header,
-        IReadOnlyList<CsoIndexEntry> entries)
+        IReadOnlyList<CsoIndexEntry> entries,
+        CancellationToken cancellationToken,
+        IProgress<CsoDecompressProgress>? progress)
     {
         int blockSize = checked((int)header.BlockSize);
         byte[] outputBuffer = new byte[blockSize];
         ulong totalWritten = 0;
+        int totalBlocks = checked((int)header.SectorCount);
 
-        for (int blockIndex = 0; blockIndex < header.SectorCount; blockIndex++)
+        ReportProgress(progress, completedBlocks: 0, totalBlocks, totalWritten, header.UncompressedSize);
+
+        for (int blockIndex = 0; blockIndex < totalBlocks; blockIndex++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             CsoIndexEntry current = entries[blockIndex];
             CsoIndexEntry next = entries[blockIndex + 1];
 
@@ -198,6 +232,14 @@ public sealed class CsoDecompressor
             }
 
             totalWritten += (ulong)expectedBlockBytes;
+
+            int completedBlocks = blockIndex + 1;
+
+            if (completedBlocks == totalBlocks ||
+                completedBlocks % ProgressReportBlockInterval == 0)
+            {
+                ReportProgress(progress, completedBlocks, totalBlocks, totalWritten, header.UncompressedSize);
+            }
         }
 
         if (totalWritten != header.UncompressedSize)
@@ -206,7 +248,23 @@ public sealed class CsoDecompressor
                 $"Decompressed size mismatch. Written {totalWritten:N0} bytes, expected {header.UncompressedSize:N0} bytes.");
         }
 
+        ReportProgress(progress, totalBlocks, totalBlocks, totalWritten, header.UncompressedSize);
+
         return totalWritten;
+    }
+
+    private static void ReportProgress(
+        IProgress<CsoDecompressProgress>? progress,
+        int completedBlocks,
+        int totalBlocks,
+        ulong bytesWritten,
+        ulong totalBytes)
+    {
+        progress?.Report(new CsoDecompressProgress(
+            completedBlocks,
+            totalBlocks,
+            bytesWritten,
+            totalBytes));
     }
 
     private static int DecompressBlock(

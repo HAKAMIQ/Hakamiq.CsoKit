@@ -6,55 +6,143 @@ public static class VerifyCommand
 {
     public static int Run(string[] args)
     {
-        if (args.Length != 1)
+        if (!TryParseArgs(args, out VerifyCommandOptions options))
         {
-            Console.Error.WriteLine("Usage: hakamiq-cso verify <input.cso>");
+            PrintUsage();
             return CliExitCodes.InvalidArguments;
         }
 
-        string inputPath = args[0];
         CsoVerifier verifier = new();
-        CsoVerificationResult result = verifier.Verify(inputPath);
+        CsoVerificationResult result = verifier.Verify(options.InputPath);
+
+        if (options.Json)
+        {
+            JsonConsole.Write(new
+            {
+                command = "verify",
+                success = result.Success,
+                input = SafeFullPath(options.InputPath),
+                header = result.Header is null
+                    ? null
+                    : new
+                    {
+                        version = result.Header.Version,
+                        headerSize = result.Header.HeaderSize,
+                        uncompressedSize = result.Header.UncompressedSize,
+                        blockSize = result.Header.BlockSize,
+                        sectorCount = result.Header.SectorCount,
+                        indexShift = result.Header.IndexShift,
+                        indexEntryCount = result.Header.IndexEntryCount,
+                        indexTableSizeBytes = result.Header.IndexTableSizeBytes
+                    },
+                index = result.Header is null
+                    ? null
+                    : new
+                    {
+                        entriesRead = result.Entries.Count,
+                        expectedEntries = result.Header.IndexEntryCount
+                    },
+                issues = result.Issues.Select(issue => new
+                {
+                    code = issue.Code,
+                    message = issue.Message
+                }).ToArray()
+            });
+
+            return result.Success
+                ? CliExitCodes.Success
+                : ToExitCode(result.Issues.FirstOrDefault()?.Code);
+        }
+
+        Console.WriteLine("CSO Verification");
+        Console.WriteLine("----------------");
+        Console.WriteLine($"Input:  {SafeFullPath(options.InputPath)}");
 
         if (result.Success && result.Header is not null)
         {
-            Console.WriteLine("CSO Verification");
-            Console.WriteLine("----------------");
-            Console.WriteLine($"Path:         {Path.GetFullPath(inputPath)}");
-            Console.WriteLine($"Status:       OK");
-            Console.WriteLine($"Version:      {result.Header.Version}");
-            Console.WriteLine($"Sector count: {result.Header.SectorCount:N0}");
+            Console.WriteLine("Status: OK");
+            Console.WriteLine($"Version:       {result.Header.Version}");
+            Console.WriteLine($"Sectors:       {result.Header.SectorCount:N0}");
             Console.WriteLine($"Index entries: {result.Entries.Count:N0}");
-
             return CliExitCodes.Success;
         }
 
-        Console.Error.WriteLine("CSO Verification");
-        Console.Error.WriteLine("----------------");
-        Console.Error.WriteLine($"Path:   {Path.GetFullPath(inputPath)}");
         Console.Error.WriteLine("Status: FAILED");
 
         foreach (CsoVerificationIssue issue in result.Issues)
         {
-            if (issue.BlockIndex is null)
-            {
-                Console.Error.WriteLine($"- {issue.Code}: {issue.Message}");
-            }
-            else
-            {
-                Console.Error.WriteLine($"- {issue.Code} [block {issue.BlockIndex:N0}]: {issue.Message}");
-            }
+            Console.Error.WriteLine($"{issue.Code}: {issue.Message}");
         }
 
-        string? firstCode = result.Issues.FirstOrDefault()?.Code;
+        return ToExitCode(result.Issues.FirstOrDefault()?.Code);
+    }
 
-        return firstCode switch
+    private static bool TryParseArgs(
+        string[] args,
+        out VerifyCommandOptions options)
+    {
+        options = default!;
+
+        if (args.Length is not (1 or 2))
+        {
+            return false;
+        }
+
+        string inputPath = args[0];
+        bool json = false;
+
+        for (int index = 1; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                json = true;
+                continue;
+            }
+
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(inputPath))
+        {
+            return false;
+        }
+
+        options = new VerifyCommandOptions(inputPath, json);
+        return true;
+    }
+
+    private static int ToExitCode(string? errorCode)
+    {
+        return errorCode switch
         {
             "InputNotFound" => CliExitCodes.InputNotFound,
-            "UnsupportedVersion" => CliExitCodes.UnsupportedCsoVersion,
             "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize"
                 => CliExitCodes.InvalidCsoHeader,
-            _ => CliExitCodes.CorruptIndexTable
+            "UnsupportedCsoVersion" => CliExitCodes.UnsupportedCsoVersion,
+            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile"
+                => CliExitCodes.CorruptIndexTable,
+            _ => CliExitCodes.GeneralFailure
         };
     }
+
+    private static string SafeFullPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    private static void PrintUsage()
+    {
+        Console.Error.WriteLine("Usage: hakamiq-cso verify <input.cso> [--json]");
+    }
+
+    private sealed record VerifyCommandOptions(
+        string InputPath,
+        bool Json);
 }
