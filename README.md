@@ -1,20 +1,19 @@
 # Hakamiq CsoKit
 
-Hakamiq CsoKit is a command-line tool for working with PSP CSO files.
+Hakamiq CsoKit is a command-line tool for inspecting, verifying, and decompressing PSP CSO files.
 
 It can:
 
 * Show CSO file information.
 * Check whether a CSO file structure looks valid.
-* Decompress CSO v1 files back to ISO.
+* Decompress CSO v1 files, including legacy CSO v1 headers using version 0 or 1, back to ISO.
 * Show progress while decompressing.
 * Stop safely when you press Ctrl+C.
 * Output JSON for automation or integration.
 
 ## Download and run
 
-Download the latest `hakamiq-csokit-*-win-x64.zip` from the Releases page.
-
+Download the latest beta hakamiq-csokit-*-win-x64.zip from the Releases page.
 Extract the ZIP file to any folder. The extracted folder contains:
 
 ```text
@@ -30,6 +29,11 @@ Open PowerShell inside the extracted folder, then run:
 
 ```powershell
 .\hakamiq-cso.exe --help
+```
+
+## Show version:
+```powershell
+.\hakamiq-cso.exe --version
 ```
 
 ## Commands
@@ -114,6 +118,6 @@ Most users do not need them.
 ## Current limitations
 
 * Decompression currently supports CSO v1 only.
+* CSO v2, ZSO, DAX, and ISO to CSO compression are not implemented yet.
 * Verification checks the CSO structure, not game compatibility.
-* ISO to CSO compression is not implemented yet.
-* CHD integration is not included in this tool yet.
+* CHD integration is not included in this tool.
