@@ -4,30 +4,31 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed class CsoDecompressor
 {
+    private const ulong OutputSafetyBufferBytes = 64UL * 1024UL * 1024UL;
+
     private readonly CsoVerifier verifier = new();
+    private readonly CsoOutputSafetyPolicy outputSafetyPolicy = new();
+    private readonly CsoDiskSpacePreflight diskSpacePreflight = new();
 
     public CsoDecompressResult Decompress(CsoDecompressOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (string.IsNullOrWhiteSpace(options.InputPath))
-        {
-            return CsoDecompressResult.Fail("InvalidInputPath", "Input path is empty.");
-        }
+        CsoOutputSafetyResult outputSafety = outputSafetyPolicy.Validate(
+            options.InputPath,
+            options.OutputPath,
+            options.ForceOverwrite);
 
-        if (string.IsNullOrWhiteSpace(options.OutputPath))
+        if (!outputSafety.Success)
         {
-            return CsoDecompressResult.Fail("InvalidOutputPath", "Output path is empty.");
+            return CsoDecompressResult.Fail(
+                outputSafety.ErrorCode ?? "OutputSafetyFailed",
+                outputSafety.ErrorMessage ?? "Output safety validation failed.");
         }
 
         if (!File.Exists(options.InputPath))
         {
             return CsoDecompressResult.Fail("InputNotFound", "Input file was not found.");
-        }
-
-        if (File.Exists(options.OutputPath) && !options.ForceOverwrite)
-        {
-            return CsoDecompressResult.Fail("OutputAlreadyExists", "Output file already exists. Use --force to overwrite.");
         }
 
         CsoVerificationResult verification = verifier.Verify(options.InputPath);
@@ -51,6 +52,16 @@ public sealed class CsoDecompressor
         if (header.BlockSize > int.MaxValue)
         {
             return CsoDecompressResult.Fail("BlockSizeTooLarge", "CSO block size is too large.");
+        }
+
+        ulong requiredBytes = AddSafetyBuffer(header.UncompressedSize);
+        CsoDiskSpacePreflightResult diskSpace = diskSpacePreflight.CheckOutputSpace(options.OutputPath, requiredBytes);
+
+        if (!diskSpace.Success)
+        {
+            return CsoDecompressResult.Fail(
+                diskSpace.ErrorCode ?? "DiskSpacePreflightFailed",
+                diskSpace.ErrorMessage ?? "Disk space preflight failed.");
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)) ?? ".");
@@ -111,6 +122,16 @@ public sealed class CsoDecompressor
             SafeDelete(tempOutputPath);
             return CsoDecompressResult.Fail("DecompressionIoFailed", ex.Message);
         }
+    }
+
+    private static ulong AddSafetyBuffer(ulong uncompressedSize)
+    {
+        if (uncompressedSize > ulong.MaxValue - OutputSafetyBufferBytes)
+        {
+            return ulong.MaxValue;
+        }
+
+        return uncompressedSize + OutputSafetyBufferBytes;
     }
 
     private static ulong DecompressBlocks(

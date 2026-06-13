@@ -1,4 +1,4 @@
-namespace Hakamiq.Cso.Cli;
+﻿namespace Hakamiq.Cso.Cli;
 
 public static class CliExitCodes
 {
@@ -11,5 +11,6 @@ public static class CliExitCodes
     public const int CorruptIndexTable = 13;
     public const int OutputAlreadyExists = 14;
     public const int CannotWriteOutput = 15;
+    public const int NotEnoughDiskSpace = 16;
     public const int DecompressionFailed = 20;
 }

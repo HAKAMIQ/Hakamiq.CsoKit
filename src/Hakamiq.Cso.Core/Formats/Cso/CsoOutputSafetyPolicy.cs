@@ -1,0 +1,56 @@
+﻿namespace Hakamiq.Cso.Core.Formats.Cso;
+
+public sealed class CsoOutputSafetyPolicy
+{
+    public CsoOutputSafetyResult Validate(
+        string inputPath,
+        string outputPath,
+        bool forceOverwrite)
+    {
+        if (string.IsNullOrWhiteSpace(inputPath))
+        {
+            return CsoOutputSafetyResult.Fail("InvalidInputPath", "Input path is empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return CsoOutputSafetyResult.Fail("InvalidOutputPath", "Output path is empty.");
+        }
+
+        string fullInputPath;
+        string fullOutputPath;
+
+        try
+        {
+            fullInputPath = Path.GetFullPath(inputPath);
+            fullOutputPath = Path.GetFullPath(outputPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return CsoOutputSafetyResult.Fail("InvalidOutputPath", ex.Message);
+        }
+
+        if (string.Equals(fullInputPath, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return CsoOutputSafetyResult.Fail(
+                "SameInputOutputPath",
+                "Input and output paths must not point to the same file.");
+        }
+
+        if (Directory.Exists(fullOutputPath))
+        {
+            return CsoOutputSafetyResult.Fail(
+                "OutputPathIsDirectory",
+                "Output path points to an existing directory.");
+        }
+
+        if (File.Exists(fullOutputPath) && !forceOverwrite)
+        {
+            return CsoOutputSafetyResult.Fail(
+                "OutputAlreadyExists",
+                "Output file already exists. Use --force to overwrite.");
+        }
+
+        return CsoOutputSafetyResult.Ok();
+    }
+}
