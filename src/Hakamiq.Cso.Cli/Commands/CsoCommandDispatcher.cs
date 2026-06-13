@@ -38,7 +38,7 @@ public static class CsoCommandDispatcher
 
     private static int PrintVersionAndReturnSuccess()
     {
-        Console.WriteLine("Hakamiq.CsoKit 0.4.0-dev");
+        Console.WriteLine("Hakamiq.CsoKit 0.4.0-beta.1");
         return CliExitCodes.Success;
     }
 
@@ -61,4 +61,5 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  --version   Show version.");
     }
 }
+
 
