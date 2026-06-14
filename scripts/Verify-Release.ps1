@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$Version = "0.4.0-beta.2",
     [string]$Runtime = "win-x64"
@@ -6,18 +6,66 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+function Invoke-NativeInfoCheck {
+    param(
+        [string]$ExecutablePath,
+        [string]$Context
+    )
+
+    $nativeInfoOutput = ((& $ExecutablePath native-info) | Out-String).Trim()
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "native-info command failed for $Context."
+    }
+
+    if ($nativeInfoOutput -notmatch "Backend:\s+native") {
+        Write-Host $nativeInfoOutput
+        throw "native-info did not report native backend for $Context."
+    }
+
+    if ($nativeInfoOutput -notmatch "Native available:\s+True") {
+        Write-Host $nativeInfoOutput
+        throw "native-info did not report native availability for $Context."
+    }
+}
+
+function Test-BlockedArtifacts {
+    param(
+        [string]$RootPath,
+        [string]$Context
+    )
+
+    $blocked = @(".git", ".github", ".vs", "bin", "obj", "TestResults")
+
+    foreach ($name in $blocked) {
+        $found = Get-ChildItem $RootPath -Force -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq $name } |
+            Select-Object -First 1
+
+        if ($found) {
+            throw "Blocked development artifact found in $Context output: $($found.FullName)"
+        }
+    }
+}
+
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ArtifactsDir = Join-Path $RepoRoot "artifacts"
-$PublishDir = Join-Path $ArtifactsDir "publish\$Runtime"
+$PublishDir = Join-Path (Join-Path $ArtifactsDir "publish") $Runtime
 $ReleaseDir = Join-Path $ArtifactsDir "release"
 $ExePath = Join-Path $PublishDir "hakamiq-cso.exe"
+$NativeDllPath = Join-Path $PublishDir "Hakamiq.Cso.Native.dll"
 $ManifestPath = Join-Path $PublishDir "SHA256SUMS.txt"
 $ZipPath = Join-Path $ReleaseDir "hakamiq-csokit-$Version-$Runtime.zip"
+$ZipCheckDir = Join-Path $ArtifactsDir "verify-release-check"
 
 Write-Host "Hakamiq CsoKit Release Verifier"
 Write-Host "Version: $Version"
 Write-Host "Runtime: $Runtime"
 Write-Host ""
+
+if ($Runtime -ne "win-x64") {
+    throw "Native backend release verification currently supports win-x64 only. Runtime requested: $Runtime"
+}
 
 if (-not (Test-Path $PublishDir)) {
     throw "Publish directory was not found: $PublishDir"
@@ -25,6 +73,10 @@ if (-not (Test-Path $PublishDir)) {
 
 if (-not (Test-Path $ExePath)) {
     throw "Executable was not found: $ExePath"
+}
+
+if (-not (Test-Path $NativeDllPath)) {
+    throw "Native backend DLL was not found: $NativeDllPath"
 }
 
 if (-not (Test-Path $ManifestPath)) {
@@ -35,17 +87,7 @@ if (-not (Test-Path $ZipPath)) {
     throw "Release ZIP was not found: $ZipPath"
 }
 
-$blocked = @(".git", ".github", ".vs", "bin", "obj", "TestResults")
-
-foreach ($name in $blocked) {
-    $found = Get-ChildItem $PublishDir -Force -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -eq $name } |
-        Select-Object -First 1
-
-    if ($found) {
-        throw "Blocked development artifact found in publish output: $($found.FullName)"
-    }
-}
+Test-BlockedArtifacts -RootPath $PublishDir -Context "publish"
 
 $versionText = ((& $ExePath --version) | Out-String).Trim()
 
@@ -63,19 +105,67 @@ if ($LASTEXITCODE -ne 0) {
     throw "Help command failed."
 }
 
-foreach ($required in @("info", "verify", "decompress", "--json", "--quiet")) {
+foreach ($required in @("info", "verify", "decompress", "native-info", "--json", "--quiet")) {
     if ($helpText -notmatch [regex]::Escape($required)) {
         throw "Help output does not contain required text: $required"
     }
 }
 
+Invoke-NativeInfoCheck -ExecutablePath $ExePath -Context "publish"
+
 $manifestLines = Get-Content $ManifestPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
-if ($manifestLines.Count -lt 3) {
+if ($manifestLines.Count -lt 4) {
     throw "SHA256 manifest looks incomplete."
+}
+
+$manifestText = $manifestLines | Out-String
+
+foreach ($requiredFile in @("hakamiq-cso.exe", "Hakamiq.Cso.Native.dll", "README.md", "LICENSE.txt")) {
+    if ($manifestText -notmatch [regex]::Escape($requiredFile)) {
+        throw "SHA256 manifest does not contain required file: $requiredFile"
+    }
+}
+
+Remove-Item $ZipCheckDir -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $ZipCheckDir | Out-Null
+
+try {
+    Expand-Archive -Path $ZipPath -DestinationPath $ZipCheckDir -Force
+
+    $ZipExePath = Join-Path $ZipCheckDir "hakamiq-cso.exe"
+    $ZipNativeDllPath = Join-Path $ZipCheckDir "Hakamiq.Cso.Native.dll"
+    $ZipManifestPath = Join-Path $ZipCheckDir "SHA256SUMS.txt"
+
+    if (-not (Test-Path $ZipExePath)) {
+        throw "Executable was not found inside ZIP: $ZipExePath"
+    }
+
+    if (-not (Test-Path $ZipNativeDllPath)) {
+        throw "Native backend DLL was not found inside ZIP: $ZipNativeDllPath"
+    }
+
+    if (-not (Test-Path $ZipManifestPath)) {
+        throw "SHA256 manifest was not found inside ZIP: $ZipManifestPath"
+    }
+
+    Test-BlockedArtifacts -RootPath $ZipCheckDir -Context "ZIP"
+
+    $zipManifestText = Get-Content $ZipManifestPath | Out-String
+
+    foreach ($requiredFile in @("hakamiq-cso.exe", "Hakamiq.Cso.Native.dll", "README.md", "LICENSE.txt")) {
+        if ($zipManifestText -notmatch [regex]::Escape($requiredFile)) {
+            throw "ZIP SHA256 manifest does not contain required file: $requiredFile"
+        }
+    }
+
+    Invoke-NativeInfoCheck -ExecutablePath $ZipExePath -Context "ZIP"
+}
+finally {
+    Remove-Item $ZipCheckDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "[PASS] Release verification completed"
 Write-Host "Executable: $ExePath"
+Write-Host "NativeDLL:  $NativeDllPath"
 Write-Host "ZIP:        $ZipPath"
-
