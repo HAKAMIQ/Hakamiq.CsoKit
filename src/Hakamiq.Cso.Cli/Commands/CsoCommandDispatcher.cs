@@ -19,6 +19,7 @@ public static class CsoCommandDispatcher
             "info" => InfoCommand.Run(args[1..]),
             "verify" => VerifyCommand.Run(args[1..]),
             "decompress" => DecompressCommand.Run(args[1..]),
+            "compress" => CompressCommand.Run(args[1..]),
             "native-info" => NativeInfoCommand.Run(),
             "--help" or "-h" or "help" => PrintHelpAndReturnSuccess(),
             "--version" or "-v" => PrintVersionAndReturnSuccess(),
@@ -59,12 +60,14 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  hakamiq-cso info <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso verify <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso decompress <input.cso> -o <output.iso> [--force] [--quiet] [--json]");
+        Console.WriteLine("  hakamiq-cso compress <input.iso> -o <output.cso> [--force] [--quiet] [--json]");
         Console.WriteLine("  hakamiq-cso native-info");
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  info         Read and print CSO header information.");
         Console.WriteLine("  verify       Validate CSO header and index table.");
         Console.WriteLine("  decompress   Decompress CSO v1 to ISO.");
+        Console.WriteLine("  compress     Compress ISO to CSO v1.");
         Console.WriteLine("  native-info  Show native backend availability.");
         Console.WriteLine();
         Console.WriteLine("Options:");
