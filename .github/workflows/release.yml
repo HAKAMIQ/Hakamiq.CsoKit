@@ -45,11 +45,12 @@ jobs:
           cmake --version
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path $vswhere)) {
-            throw "vswhere.exe was not found."
+          if (Test-Path $vswhere) {
+            & $vswhere -latest -products * -property installationPath
           }
-
-          & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          else {
+            Write-Host "vswhere.exe was not found. Build-Native.ps1 will use fallback discovery."
+          }
 
       - name: Resolve release version
         run: |
