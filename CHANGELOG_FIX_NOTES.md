@@ -2,6 +2,13 @@
 
 This source package applies the stability fixes requested after the CSO readiness review.
 
+## P1-B compression decision split
+
+- Add `CsoCompressionWorker` to own per-sector raw-deflate candidate creation.
+- Add `CsoBestCandidateSelector` to own the stored-versus-compressed decision.
+- Keep the current compression behavior unchanged: raw-deflate is selected only when it is smaller than the original sector; otherwise the original sector is stored.
+- Add focused tests for candidate selection and worker output decisions.
+
 ## P1-A sector engine foundation
 
 - Add `CompressionMethod`, `SectorJob`, and `SectorResult` as the first block-pipeline data contracts.

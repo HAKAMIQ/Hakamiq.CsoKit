@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.IO.Compression;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -158,6 +157,7 @@ public sealed class CsoCompressor
 
         CsoIndexBuilder indexBuilder = new(totalBlocks);
         CsoOrderedOutputWriter outputWriter = new(output);
+        CsoCompressionWorker compressionWorker = new();
         byte[] inputBuffer = new byte[blockSize];
 
         outputWriter.ReserveDataStart(dataStart);
@@ -186,7 +186,7 @@ public sealed class CsoCompressor
                 read,
                 inputBuffer.AsMemory(0, read));
 
-            SectorResult sectorResult = CompressSector(job);
+            SectorResult sectorResult = compressionWorker.Compress(job);
             ulong blockOffset = outputWriter.Position;
 
             indexBuilder.AddSectorOffset(blockOffset, sectorResult.IsStored);
@@ -263,49 +263,6 @@ public sealed class CsoCompressor
             BinaryPrimitives.WriteUInt32LittleEndian(rawEntry, entry);
             output.Write(rawEntry);
         }
-    }
-
-    private static SectorResult CompressSector(SectorJob job)
-    {
-        byte[] compressed = CompressRawDeflate(job.SourceSpan);
-        bool storeUncompressed = compressed.Length >= job.SourceLength;
-
-        if (storeUncompressed)
-        {
-            byte[] storedBuffer = job.SourceSpan.ToArray();
-
-            return new SectorResult(
-                job.BlockIndex,
-                job.SourceOffset,
-                job.SourceLength,
-                storedBuffer.Length,
-                IsStored: true,
-                Method: CompressionMethod.Store,
-                Level: 0,
-                Buffer: storedBuffer);
-        }
-
-        return new SectorResult(
-            job.BlockIndex,
-            job.SourceOffset,
-            job.SourceLength,
-            compressed.Length,
-            IsStored: false,
-            Method: CompressionMethod.RawDeflate,
-            Level: 9,
-            Buffer: compressed);
-    }
-
-    private static byte[] CompressRawDeflate(ReadOnlySpan<byte> block)
-    {
-        using MemoryStream compressed = new();
-
-        using (DeflateStream deflate = new(compressed, CompressionLevel.SmallestSize, leaveOpen: true))
-        {
-            deflate.Write(block);
-        }
-
-        return compressed.ToArray();
     }
 
     private static ulong AddSafetyBuffer(ulong requiredBytes)
