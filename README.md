@@ -116,7 +116,7 @@ Manual PowerShell use usually works best with the default text output.
 
 `SHA256SUMS.txt` is included for release file verification.
 
-You can use it to check that the downloaded files were not changed or corrupted.
+Use it to check that the downloaded files were not changed or corrupted after release.
 
 ## Exit codes
 
@@ -146,7 +146,4 @@ Not implemented yet:
 * DAX
 * ISO to CSO compression
 
-Notes:
-
-* Verification checks CSO structure, not game compatibility.
-* CHD integration is not included in this tool.
+Verification checks CSO structure. It does not confirm whether a game works in a specific emulator or device.
