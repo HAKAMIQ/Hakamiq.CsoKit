@@ -55,7 +55,7 @@ public sealed class CsoDecompressor
             {
                 return CsoDecompressResult.Fail(
                     "UnsupportedDecompressionVersion",
-                    $"CSO decompression currently supports CSO v1 only. File version: {header.Version}.");
+                    "Unsupported CSO file.");
             }
 
             if (header.BlockSize > CsoConstants.MaxSupportedBlockSize)

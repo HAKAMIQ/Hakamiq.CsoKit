@@ -150,9 +150,6 @@ Use it to check that the downloaded files were not changed or corrupted after re
 
 ## Limitations
 
-Not implemented yet:
-
-* ZSO
-* DAX
+Hakamiq CsoKit intentionally focuses on ISO and CSO workflows. Other PSP image/container families are outside the current v1 scope.
 
 Verification checks CSO structure. It does not confirm whether a game works in a specific emulator or device.

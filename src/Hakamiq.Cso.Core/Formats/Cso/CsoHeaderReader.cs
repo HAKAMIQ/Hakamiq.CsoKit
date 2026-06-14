@@ -69,7 +69,7 @@ public sealed class CsoHeaderReader
         {
             return CsoHeaderReadResult.Fail(
                 "UnsupportedVersion",
-                $"Unsupported CSO version: {version}.");
+                "Unsupported CSO file.");
         }
 
         if (version == 2 && headerSize < CsoConstants.MinimumHeaderSize)

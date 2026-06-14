@@ -156,16 +156,11 @@ public sealed class CsoCompressor
     {
         ulong dataStart = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalBlocks + 1) * sizeof(uint)));
 
-        if (dataStart > long.MaxValue)
-        {
-            throw new InvalidDataException("CSO index table is too large.");
-        }
-
-        List<uint> indexEntries = new(totalBlocks + 1);
+        CsoIndexBuilder indexBuilder = new(totalBlocks);
+        CsoOrderedOutputWriter outputWriter = new(output);
         byte[] inputBuffer = new byte[blockSize];
 
-        output.SetLength(checked((long)dataStart));
-        output.Position = checked((long)dataStart);
+        outputWriter.ReserveDataStart(dataStart);
 
         ulong totalRead = 0;
         int compressedBlocks = 0;
@@ -178,27 +173,31 @@ public sealed class CsoCompressor
             cancellationToken.ThrowIfCancellationRequested();
 
             int expectedBytes = checked((int)Math.Min((ulong)blockSize, inputBytes - totalRead));
-            int read = ReadExactlyOrLess(input, inputBuffer.AsSpan(0, expectedBytes));
+            int read = CsoBlockReader.ReadExactlyOrLess(input, inputBuffer.AsSpan(0, expectedBytes));
 
             if (read != expectedBytes)
             {
                 throw new EndOfStreamException($"Unexpected end of ISO. Expected {expectedBytes:N0} bytes, got {read:N0}.");
             }
 
-            ulong blockOffset = checked((ulong)output.Position);
-            byte[] compressed = CompressRawDeflate(inputBuffer.AsSpan(0, read));
+            SectorJob job = new(
+                blockIndex,
+                totalRead,
+                read,
+                inputBuffer.AsMemory(0, read));
 
-            bool storeUncompressed = compressed.Length >= read;
-            indexEntries.Add(EncodeIndexOffset(blockOffset, storeUncompressed));
+            SectorResult sectorResult = CompressSector(job);
+            ulong blockOffset = outputWriter.Position;
 
-            if (storeUncompressed)
+            indexBuilder.AddSectorOffset(blockOffset, sectorResult.IsStored);
+            outputWriter.Write(sectorResult);
+
+            if (sectorResult.IsStored)
             {
-                output.Write(inputBuffer, 0, read);
                 storedBlocks++;
             }
             else
             {
-                output.Write(compressed, 0, compressed.Length);
                 compressedBlocks++;
             }
 
@@ -213,15 +212,15 @@ public sealed class CsoCompressor
             }
         }
 
-        indexEntries.Add(EncodeIndexOffset(checked((ulong)output.Position), hasFlag: false));
+        indexBuilder.AddFinalOffset(outputWriter.Position);
 
-        ulong bytesWritten = checked((ulong)output.Position);
+        ulong bytesWritten = outputWriter.Position;
 
         WriteHeaderAndIndex(
             output,
             inputBytes,
             (uint)blockSize,
-            indexEntries);
+            indexBuilder.Entries);
 
         ReportProgress(progress, totalBlocks, totalBlocks, totalRead, inputBytes);
 
@@ -266,23 +265,35 @@ public sealed class CsoCompressor
         }
     }
 
-    private static uint EncodeIndexOffset(
-        ulong offset,
-        bool hasFlag)
+    private static SectorResult CompressSector(SectorJob job)
     {
-        if (offset > CsoIndexEntry.OffsetMask)
+        byte[] compressed = CompressRawDeflate(job.SourceSpan);
+        bool storeUncompressed = compressed.Length >= job.SourceLength;
+
+        if (storeUncompressed)
         {
-            throw new InvalidDataException("CSO v1 output is too large for a 31-bit index table.");
+            byte[] storedBuffer = job.SourceSpan.ToArray();
+
+            return new SectorResult(
+                job.BlockIndex,
+                job.SourceOffset,
+                job.SourceLength,
+                storedBuffer.Length,
+                IsStored: true,
+                Method: CompressionMethod.Store,
+                Level: 0,
+                Buffer: storedBuffer);
         }
 
-        uint rawValue = checked((uint)offset);
-
-        if (hasFlag)
-        {
-            rawValue |= CsoIndexEntry.FlagMask;
-        }
-
-        return rawValue;
+        return new SectorResult(
+            job.BlockIndex,
+            job.SourceOffset,
+            job.SourceLength,
+            compressed.Length,
+            IsStored: false,
+            Method: CompressionMethod.RawDeflate,
+            Level: 9,
+            Buffer: compressed);
     }
 
     private static byte[] CompressRawDeflate(ReadOnlySpan<byte> block)
@@ -327,25 +338,6 @@ public sealed class CsoCompressor
             totalBlocks,
             bytesRead,
             totalBytes));
-    }
-
-    private static int ReadExactlyOrLess(Stream stream, Span<byte> buffer)
-    {
-        int totalRead = 0;
-
-        while (totalRead < buffer.Length)
-        {
-            int read = stream.Read(buffer[totalRead..]);
-
-            if (read == 0)
-            {
-                break;
-            }
-
-            totalRead += read;
-        }
-
-        return totalRead;
     }
 
     private static void SafeDelete(string path)
