@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$Configuration = "Release",
     [string]$Platform = "x64"
@@ -7,39 +7,63 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Find-VsDevCmd {
+    $candidates = New-Object System.Collections.Generic.List[string]
+
     $programFilesX86 = ${env:ProgramFiles(x86)}
-    $vswherePath = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
+        $vswherePath = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
 
-    if (Test-Path $vswherePath) {
-        $installationPath = & $vswherePath -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+        if (Test-Path $vswherePath) {
+            $installationPaths = @(
+                & $vswherePath -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                & $vswherePath -latest -products * -property installationPath
+            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($installationPath)) {
-            $candidate = Join-Path $installationPath "Common7\Tools\VsDevCmd.bat"
-
-            if (Test-Path $candidate) {
-                return $candidate
+            foreach ($path in $installationPaths) {
+                $candidates.Add((Join-Path $path "Common7\Tools\VsDevCmd.bat"))
             }
         }
     }
 
-    $candidates = @(
-        "C:\Program Files\Microsoft Visual Studio\2026\Enterprise\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2026\Professional\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2026\Community\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files (x86)\Microsoft Visual Studio\2026\BuildTools\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
-    )
+    $roots = @(
+        (Join-Path $env:ProgramFiles "Microsoft Visual Studio"),
+        (Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio")
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path $_) }
 
-    foreach ($candidate in $candidates) {
+    foreach ($root in $roots) {
+        Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue |
+                    ForEach-Object {
+                        $candidates.Add((Join-Path $_.FullName "Common7\Tools\VsDevCmd.bat"))
+                    }
+            }
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
         if (Test-Path $candidate) {
             return $candidate
         }
     }
 
-    throw "Visual Studio Developer Command Prompt was not found. Install Visual Studio with C++ build tools."
+    return $null
+}
+
+function Invoke-CMakeBuild {
+    param(
+        [string]$CMakeExe,
+        [string]$NativeRoot,
+        [string]$BuildDir,
+        [string]$Configuration
+    )
+
+    & $CMakeExe -S $NativeRoot -B $BuildDir -A x64
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    & $CMakeExe --build $BuildDir --config $Configuration
+    return $LASTEXITCODE -eq 0
 }
 
 if ($Configuration -ne "Debug" -and $Configuration -ne "Release") {
@@ -73,20 +97,41 @@ if (-not $cmakeCommand) {
     throw "cmake.exe was not found on PATH."
 }
 
-$VsDevCmd = Find-VsDevCmd
-
-Write-Host "CMake:    $($cmakeCommand.Source)"
-Write-Host "VsDevCmd: $VsDevCmd"
+Write-Host "CMake: $($cmakeCommand.Source)"
 Write-Host ""
 
-$cmdLine = '"' + $VsDevCmd + '" -arch=amd64 -host_arch=amd64' +
-    ' && cmake -S "' + $NativeRoot + '" -B "' + $BuildDir + '" -A x64' +
-    ' && cmake --build "' + $BuildDir + '" --config ' + $Configuration
+Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
 
-cmd.exe /d /s /c $cmdLine
+Write-Host "[1/2] Build native backend using CMake"
+$directBuildSucceeded = Invoke-CMakeBuild `
+    -CMakeExe $cmakeCommand.Source `
+    -NativeRoot $NativeRoot `
+    -BuildDir $BuildDir `
+    -Configuration $Configuration
 
-if ($LASTEXITCODE -ne 0) {
-    throw "Native build failed with exit code $LASTEXITCODE."
+if (-not $directBuildSucceeded) {
+    Write-Host ""
+    Write-Host "Direct CMake build failed. Trying Visual Studio Developer Command Prompt fallback."
+
+    Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    $VsDevCmd = Find-VsDevCmd
+    if ([string]::IsNullOrWhiteSpace($VsDevCmd)) {
+        throw "Visual Studio Developer Command Prompt was not found. Install Visual Studio with C++ build tools."
+    }
+
+    Write-Host "VsDevCmd: $VsDevCmd"
+    Write-Host ""
+
+    $cmdLine = '"' + $VsDevCmd + '" -arch=amd64 -host_arch=amd64' +
+        ' && "' + $cmakeCommand.Source + '" -S "' + $NativeRoot + '" -B "' + $BuildDir + '" -A x64' +
+        ' && "' + $cmakeCommand.Source + '" --build "' + $BuildDir + '" --config ' + $Configuration
+
+    cmd.exe /d /s /c $cmdLine
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Native build failed with exit code $LASTEXITCODE."
+    }
 }
 
 $DllPath = Join-Path $BuildDir "$Configuration\Hakamiq.Cso.Native.dll"
@@ -95,6 +140,7 @@ if (-not (Test-Path $DllPath)) {
     throw "Native DLL was not produced: $DllPath"
 }
 
+Write-Host "[2/2] Validate native DLL"
 Write-Host ""
 Write-Host "[PASS] Native DLL built"
 Write-Host "DLL: $DllPath"
