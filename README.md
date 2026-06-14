@@ -1,11 +1,14 @@
+# Hakamiq CsoKit
+
 Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
 
-It can inspect CSO files, verify their structure, and decompress supported CSO files back to ISO.
+It can inspect CSO files, verify their structure, decompress CSO files back to ISO, and compress ISO files to CSO.
 
-Current beta support:
+## Current beta support
 
-* CSO v1 decompression
-* Legacy CSO v1 headers using version `0` or `1`
+* CSO decompression
+* ISO to CSO compression
+* CSO info and verification
 * Progress output
 * Safe Ctrl+C cancellation
 * JSON output for scripts and integrations
@@ -48,22 +51,6 @@ Hakamiq CsoKit is a command-line tool, not a double-click desktop app.
 .\hakamiq-cso.exe --version
 ```
 
-## Native backend
-
-The release package includes a native backend:
-
-```text
-Hakamiq.Cso.Native.dll
-```
-
-Check it with:
-
-```powershell
-.\hakamiq-cso.exe native-info
-```
-
-If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE.
-
 ## Commands
 
 Show CSO information:
@@ -78,6 +65,12 @@ Verify a CSO file:
 .\hakamiq-cso.exe verify ".\game.cso"
 ```
 
+Compress ISO to CSO:
+
+```powershell
+.\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso"
+```
+
 Decompress CSO to ISO:
 
 ```powershell
@@ -87,20 +80,39 @@ Decompress CSO to ISO:
 Overwrite the output file:
 
 ```powershell
+.\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso" --force
 .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso" --force
 ```
 
 Run with less console output:
 
 ```powershell
+.\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso" --quiet
 .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso" --quiet
 ```
 
 Use full paths:
 
 ```powershell
+.\hakamiq-cso.exe compress "D:\Games\PSP\game.iso" -o "D:\Games\PSP\game.cso"
 .\hakamiq-cso.exe decompress "D:\Games\PSP\game.cso" -o "D:\Games\PSP\game.iso"
 ```
+
+## Native backend
+
+The release package includes:
+
+```text
+Hakamiq.Cso.Native.dll
+```
+
+Check it with:
+
+```powershell
+.\hakamiq-cso.exe native-info
+```
+
+If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE.
 
 ## JSON output
 
@@ -120,20 +132,19 @@ Use it to check that the downloaded files were not changed or corrupted after re
 
 ## Exit codes
 
-Exit codes are useful for scripts, batch files, CI jobs, and integrations.
-
 ```text
 0    Success
 1    General failure
 2    Invalid command or missing argument
 10   Input file not found
 11   Invalid CSO file header
-12   Unsupported CSO version
+12   Unsupported CSO file
 13   Corrupt CSO index table
 14   Output file already exists
 15   Cannot write output file
 16   Not enough disk space
 20   Decompression failed
+21   Compression failed
 130  Operation canceled by user
 ```
 
@@ -141,9 +152,7 @@ Exit codes are useful for scripts, batch files, CI jobs, and integrations.
 
 Not implemented yet:
 
-* CSO v2
 * ZSO
 * DAX
-* ISO to CSO compression
 
 Verification checks CSO structure. It does not confirm whether a game works in a specific emulator or device.
