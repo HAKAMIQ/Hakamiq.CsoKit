@@ -66,8 +66,8 @@ public static class CsoCommandDispatcher
         Console.WriteLine("Commands:");
         Console.WriteLine("  info         Read and print CSO header information.");
         Console.WriteLine("  verify       Validate CSO header and index table.");
-        Console.WriteLine("  decompress   Decompress CSO v1 to ISO.");
-        Console.WriteLine("  compress     Compress ISO to CSO v1.");
+        Console.WriteLine("  decompress   Decompress CSO to ISO.");
+        Console.WriteLine("  compress     Compress ISO to CSO.");
         Console.WriteLine("  native-info  Show native backend availability.");
         Console.WriteLine();
         Console.WriteLine("Options:");
