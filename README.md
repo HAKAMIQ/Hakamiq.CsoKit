@@ -1,40 +1,68 @@
-# Hakamiq CsoKit
+Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
 
-Hakamiq CsoKit is a command-line tool for inspecting, verifying, and decompressing PSP CSO files.
+It can inspect CSO files, verify their structure, and decompress supported CSO files back to ISO.
 
-It can:
+Current beta support:
 
-* Show CSO file information.
-* Check whether a CSO file structure looks valid.
-* Decompress CSO v1 files, including legacy CSO v1 headers using version 0 or 1, back to ISO.
-* Show progress while decompressing.
-* Stop safely when you press Ctrl+C.
-* Output JSON for automation or integration.
+* CSO v1 decompression
+* Legacy CSO v1 headers using version `0` or `1`
+* Progress output
+* Safe Ctrl+C cancellation
+* JSON output for scripts and integrations
 
-## Download and run
+## Download
 
-Download the latest beta hakamiq-csokit-*-win-x64.zip from the Releases page.
-Extract the ZIP file to any folder. The extracted folder contains:
+Download the latest beta package from the Releases page:
+
+```text
+hakamiq-csokit-*-win-x64.zip
+```
+
+Extract the ZIP file to any folder.
+
+The extracted folder should include:
 
 ```text
 hakamiq-cso.exe
+Hakamiq.Cso.Native.dll
 README.md
 LICENSE.txt
 SHA256SUMS.txt
 ```
 
-This is a command-line tool. Do not run `hakamiq-cso.exe` by double-clicking it.
+Keep `Hakamiq.Cso.Native.dll` next to `hakamiq-cso.exe`.
 
-Open PowerShell inside the extracted folder, then run:
+## Quick start
+
+Open PowerShell in the extracted folder and run:
 
 ```powershell
 .\hakamiq-cso.exe --help
 ```
 
-## Show version:
+Hakamiq CsoKit is a command-line tool, not a double-click desktop app.
+
+## Version
+
 ```powershell
 .\hakamiq-cso.exe --version
 ```
+
+## Native backend
+
+The release package includes a native backend:
+
+```text
+Hakamiq.Cso.Native.dll
+```
+
+Check it with:
+
+```powershell
+.\hakamiq-cso.exe native-info
+```
+
+If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE.
 
 ## Commands
 
@@ -56,21 +84,19 @@ Decompress CSO to ISO:
 .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso"
 ```
 
-Overwrite an existing ISO:
+Overwrite the output file:
 
 ```powershell
 .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso" --force
 ```
 
-Run without progress messages:
+Run with less console output:
 
 ```powershell
 .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso" --quiet
 ```
 
-## Full path example
-
-You can also use full file paths:
+Use full paths:
 
 ```powershell
 .\hakamiq-cso.exe decompress "D:\Games\PSP\game.cso" -o "D:\Games\PSP\game.iso"
@@ -78,27 +104,23 @@ You can also use full file paths:
 
 ## JSON output
 
-Use `--json` if another program or script needs to read the result:
+Add `--json` when another program or script needs structured output:
 
 ```powershell
 .\hakamiq-cso.exe verify ".\game.cso" --json
 ```
 
-Most users do not need this option.
+Manual PowerShell use usually works best with the default text output.
 
-## SHA256SUMS.txt
+## Checksums
 
-`SHA256SUMS.txt` is optional.
+`SHA256SUMS.txt` is included for release file verification.
 
-It is included only for users who want to verify that the release files were not changed or corrupted.
-
-You do not need it to run the tool.
+You can use it to check that the downloaded files were not changed or corrupted.
 
 ## Exit codes
 
-Exit codes are mainly for scripts and automation.
-
-Most users do not need them.
+Exit codes are useful for scripts, batch files, CI jobs, and integrations.
 
 ```text
 0    Success
@@ -115,9 +137,16 @@ Most users do not need them.
 130  Operation canceled by user
 ```
 
-## Current limitations
+## Limitations
 
-* Decompression currently supports CSO v1 only.
-* CSO v2, ZSO, DAX, and ISO to CSO compression are not implemented yet.
-* Verification checks the CSO structure, not game compatibility.
+Not implemented yet:
+
+* CSO v2
+* ZSO
+* DAX
+* ISO to CSO compression
+
+Notes:
+
+* Verification checks CSO structure, not game compatibility.
 * CHD integration is not included in this tool.
