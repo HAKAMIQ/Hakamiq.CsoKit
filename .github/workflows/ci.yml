@@ -19,7 +19,7 @@ permissions:
 jobs:
   build-test-package:
     name: Build, test, native, and package
-    runs-on: windows-latest
+    runs-on: windows-2025
 
     defaults:
       run:
