@@ -1,4 +1,4 @@
-# Hakamiq CsoKit
+﻿# Hakamiq CsoKit
 
 Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
 
@@ -9,6 +9,8 @@ It can inspect CSO files, verify their structure, decompress CSO files back to I
 * CSO decompression
 * ISO to CSO compression
 * CSO info and verification
+* ISO compression measurement without writing an output file
+* Same-folder default output naming without creating output folders
 * Progress output
 * Safe Ctrl+C cancellation
 * JSON output for scripts and integrations
@@ -65,13 +67,35 @@ Verify a CSO file:
 .\hakamiq-cso.exe verify ".\game.cso"
 ```
 
-Compress ISO to CSO:
+Compress ISO to CSO in the same folder:
+
+```powershell
+.\hakamiq-cso.exe compress ".\game.iso"
+```
+
+If `.\game.cso` already exists, Hakamiq CsoKit writes `.\game - Hakamiq Converted.cso` instead. If that also exists, it writes `.\game - Hakamiq Converted 2.cso`, then keeps counting upward.
+
+Use an explicit output file when needed:
 
 ```powershell
 .\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso"
 ```
 
-Decompress CSO to ISO:
+Estimate CSO size without writing an output file:
+
+```powershell
+.\hakamiq-cso.exe compress ".\game.iso" --measure
+```
+
+Decompress CSO to ISO in the same folder:
+
+```powershell
+.\hakamiq-cso.exe decompress ".\game.cso"
+```
+
+If `.\game.iso` already exists, Hakamiq CsoKit writes `.\game - Hakamiq Converted.iso` instead.
+
+Use an explicit output file when needed:
 
 ```powershell
 .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso"
@@ -87,16 +111,18 @@ Overwrite the output file:
 Run with less console output:
 
 ```powershell
-.\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso" --quiet
-.\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso" --quiet
+.\hakamiq-cso.exe compress ".\game.iso" --quiet
+.\hakamiq-cso.exe decompress ".\game.cso" --quiet
 ```
 
 Use full paths:
 
 ```powershell
-.\hakamiq-cso.exe compress "D:\Games\PSP\game.iso" -o "D:\Games\PSP\game.cso"
-.\hakamiq-cso.exe decompress "D:\Games\PSP\game.cso" -o "D:\Games\PSP\game.iso"
+.\hakamiq-cso.exe compress "D:\Games\PSP\game.iso"
+.\hakamiq-cso.exe decompress "D:\Games\PSP\game.cso"
 ```
+
+Hakamiq CsoKit does not create output folders automatically. If you pass `-o`, the destination folder must already exist.
 
 ## Native backend
 
@@ -120,6 +146,7 @@ Add `--json` when another program or script needs structured output:
 
 ```powershell
 .\hakamiq-cso.exe verify ".\game.cso" --json
+.\hakamiq-cso.exe compress ".\game.iso" --measure --json
 ```
 
 Manual PowerShell use usually works best with the default text output.

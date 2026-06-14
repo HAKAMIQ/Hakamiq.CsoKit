@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -22,6 +22,11 @@ public sealed class CsoCompressor
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (!File.Exists(options.InputPath))
+            {
+                return CsoCompressResult.Fail("InputNotFound", "Input file was not found.");
+            }
+
             CsoOutputSafetyResult outputSafety = outputSafetyPolicy.Validate(
                 options.InputPath,
                 options.OutputPath,
@@ -32,11 +37,6 @@ public sealed class CsoCompressor
                 return CsoCompressResult.Fail(
                     outputSafety.ErrorCode ?? "OutputSafetyFailed",
                     outputSafety.ErrorMessage ?? "Output safety validation failed.");
-            }
-
-            if (!File.Exists(options.InputPath))
-            {
-                return CsoCompressResult.Fail("InputNotFound", "Input file was not found.");
             }
 
             if (options.BlockSize == 0)
@@ -75,8 +75,6 @@ public sealed class CsoCompressor
             }
 
             string fullOutputPath = Path.GetFullPath(options.OutputPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? ".");
-
             string tempOutputPath = CreateUniqueTempOutputPath(fullOutputPath);
 
             try

@@ -1,6 +1,24 @@
-# Hakamiq CsoKit stability fix notes
+﻿# Hakamiq CsoKit stability fix notes
 
 This source package applies the stability fixes requested after the CSO readiness review.
+
+
+## P1-D output path policy
+
+- Add same-folder default output naming for end-user conversion commands.
+- Allow `hakamiq-cso compress <input.iso>` to write `<input>.cso` beside the source file.
+- Allow `hakamiq-cso decompress <input.cso>` to write `<input>.iso` beside the source file.
+- Avoid automatic output-folder creation. Explicit `-o` paths must point to an existing folder.
+- Avoid overwriting existing files when output is auto-named. Existing targets receive ` - Hakamiq Converted`, then numbered suffixes.
+- Keep `--measure` write-free and output-path-free.
+
+## P1-C measure layer
+
+- Add `CsoMeasureEstimator`, `CsoMeasureOptions`, and `CsoMeasureResult` for estimating CSO output size without writing a CSO file.
+- Add `hakamiq-cso compress <input.iso> --measure` for measure-only CLI usage.
+- Report original size, estimated CSO size, estimated ratio, saved/growth bytes, total blocks, compressed blocks, stored blocks, profile, fast mode, and level.
+- Reuse the same sector compression worker and stored-versus-compressed selector used by the writer path so estimates track current compression behavior.
+- Add focused tests to compare measure results with actual compression output.
 
 ## P1-B compression decision split
 

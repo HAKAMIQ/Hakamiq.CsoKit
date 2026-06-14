@@ -99,4 +99,29 @@ public sealed class CsoOutputSafetyPolicyTests
             }
         }
     }
+
+    [Fact]
+    public void Validate_WithMissingOutputDirectory_ReturnsOutputDirectoryNotFound()
+    {
+        string inputPath = Path.Combine(Path.GetTempPath(), $"HakamiqCsoKit_Input_{Guid.NewGuid():N}.iso");
+        string outputDirectory = Path.Combine(Path.GetTempPath(), $"HakamiqCsoKit_MissingDir_{Guid.NewGuid():N}");
+        string outputPath = Path.Combine(outputDirectory, "Game.cso");
+
+        try
+        {
+            File.WriteAllBytes(inputPath, [1]);
+
+            CsoOutputSafetyPolicy policy = new();
+            CsoOutputSafetyResult result = policy.Validate(inputPath, outputPath, forceOverwrite: false);
+
+            Assert.False(result.Success);
+            Assert.Equal("OutputDirectoryNotFound", result.ErrorCode);
+            Assert.False(Directory.Exists(outputDirectory));
+        }
+        finally
+        {
+            File.Delete(inputPath);
+        }
+    }
+
 }

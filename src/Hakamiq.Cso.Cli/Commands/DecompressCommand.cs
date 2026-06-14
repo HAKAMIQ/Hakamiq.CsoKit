@@ -1,4 +1,4 @@
-using Hakamiq.Cso.Core.Formats.Cso;
+﻿using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -34,12 +34,20 @@ public static class DecompressCommand
 
         try
         {
+            string outputPath = options.OutputPath ?? new CsoOutputPathPolicy().CreateDecompressionOutputPath(options.InputPath);
+            bool autoOutput = options.OutputPath is null;
+
             if (!options.Quiet && !options.Json)
             {
                 Console.WriteLine("CSO Decompression");
                 Console.WriteLine("-----------------");
                 Console.WriteLine($"Input:  {SafeFullPath(options.InputPath)}");
-                Console.WriteLine($"Output: {SafeFullPath(options.OutputPath)}");
+                Console.WriteLine($"Output: {SafeFullPath(outputPath)}");
+
+                if (autoOutput)
+                {
+                    Console.WriteLine("Output mode: same folder; auto-named without overwriting existing files.");
+                }
             }
 
             ConsoleDecompressProgress? progress = options.Quiet || options.Json
@@ -50,8 +58,8 @@ public static class DecompressCommand
             CsoDecompressResult result = decompressor.Decompress(
                 new CsoDecompressOptions(
                     options.InputPath,
-                    options.OutputPath,
-                    options.Force,
+                    outputPath,
+                    options.Force && !autoOutput,
                     cancellation.Token,
                     progress));
 
@@ -64,8 +72,9 @@ public static class DecompressCommand
                     command = "decompress",
                     success = result.Success,
                     input = SafeFullPath(options.InputPath),
-                    output = SafeFullPath(options.OutputPath),
-                    force = options.Force,
+                    output = SafeFullPath(outputPath),
+                    force = options.Force && !autoOutput,
+                    autoOutput,
                     bytesWritten = result.BytesWritten,
                     error = result.Success
                         ? null
@@ -109,7 +118,7 @@ public static class DecompressCommand
     {
         options = default!;
 
-        if (args.Length < 3)
+        if (args.Length < 1)
         {
             return false;
         }
@@ -158,8 +167,7 @@ public static class DecompressCommand
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(inputPath) ||
-            string.IsNullOrWhiteSpace(outputPath))
+        if (string.IsNullOrWhiteSpace(inputPath))
         {
             return false;
         }
@@ -183,7 +191,7 @@ public static class DecompressCommand
             "OutputAlreadyExists" => CliExitCodes.OutputAlreadyExists,
             "NotEnoughDiskSpace" => CliExitCodes.NotEnoughDiskSpace,
             "OperationCanceled" => CliExitCodes.OperationCanceled,
-            "SameInputOutputPath" or "OutputPathIsDirectory" or "InvalidOutputPath" => CliExitCodes.CannotWriteOutput,
+            "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "DecompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidIndexShift"
                 => CliExitCodes.InvalidCsoHeader,
@@ -207,12 +215,12 @@ public static class DecompressCommand
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: hakamiq-cso decompress <input.cso> -o <output.iso> [--force] [--quiet] [--json]");
+        Console.Error.WriteLine("Usage: hakamiq-cso decompress <input.cso> [-o <output.iso>] [--force] [--quiet] [--json]");
     }
 
     private sealed record DecompressCommandOptions(
         string InputPath,
-        string OutputPath,
+        string? OutputPath,
         bool Force,
         bool Quiet,
         bool Json);

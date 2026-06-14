@@ -1,4 +1,4 @@
-using Hakamiq.Cso.Core.Formats.Cso;
+﻿using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Tests.Formats.Cso;
 
@@ -121,6 +121,37 @@ public sealed class CsoCompressorTests
         {
             File.Delete(isoPath);
             File.Delete(csoPath);
+        }
+    }
+
+
+    [Fact]
+    public void Compress_WithMissingOutputDirectory_DoesNotCreateDirectory()
+    {
+        string isoPath = CreateTempPath(".iso");
+        string outputDirectory = Path.Combine(Path.GetTempPath(), $"HakamiqCsoKit_Missing_{Guid.NewGuid():N}");
+        string csoPath = Path.Combine(outputDirectory, "Game.cso");
+
+        try
+        {
+            File.WriteAllBytes(isoPath, [1, 2, 3, 4]);
+
+            CsoCompressor compressor = new();
+            CsoCompressResult result = compressor.Compress(
+                new CsoCompressOptions(isoPath, csoPath, ForceOverwrite: false));
+
+            Assert.False(result.Success);
+            Assert.Equal("OutputDirectoryNotFound", result.ErrorCode);
+            Assert.False(Directory.Exists(outputDirectory));
+        }
+        finally
+        {
+            File.Delete(isoPath);
+
+            if (Directory.Exists(outputDirectory))
+            {
+                Directory.Delete(outputDirectory, recursive: true);
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-using Hakamiq.Cso.Core.Formats.Cso;
+﻿using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -34,80 +34,193 @@ public static class CompressCommand
 
         try
         {
-            if (!options.Quiet && !options.Json)
-            {
-                Console.WriteLine("CSO Compression");
-                Console.WriteLine("---------------");
-                Console.WriteLine($"Input:  {SafeFullPath(options.InputPath)}");
-                Console.WriteLine($"Output: {SafeFullPath(options.OutputPath)}");
-            }
-
-            ConsoleCompressProgress? progress = options.Quiet || options.Json
-                ? null
-                : new ConsoleCompressProgress();
-
-            CsoCompressor compressor = new();
-            CsoCompressResult result = compressor.Compress(
-                new CsoCompressOptions(
-                    options.InputPath,
-                    options.OutputPath,
-                    options.Force,
-                    CsoCompressor.DefaultBlockSize,
-                    cancellation.Token,
-                    progress));
-
-            progress?.FinishLine();
-
-            if (options.Json)
-            {
-                JsonConsole.Write(new
-                {
-                    command = "compress",
-                    success = result.Success,
-                    input = SafeFullPath(options.InputPath),
-                    output = SafeFullPath(options.OutputPath),
-                    force = options.Force,
-                    bytesRead = result.BytesRead,
-                    bytesWritten = result.BytesWritten,
-                    compressedBlocks = result.CompressedBlocks,
-                    storedBlocks = result.StoredBlocks,
-                    error = result.Success
-                        ? null
-                        : new
-                        {
-                            code = result.ErrorCode,
-                            message = result.ErrorMessage
-                        }
-                });
-
-                return result.Success
-                    ? CliExitCodes.Success
-                    : ToExitCode(result.ErrorCode);
-            }
-
-            if (result.Success)
-            {
-                if (!options.Quiet)
-                {
-                    Console.WriteLine("Status: OK");
-                    Console.WriteLine($"Bytes read: {result.BytesRead:N0}");
-                    Console.WriteLine($"Bytes written: {result.BytesWritten:N0}");
-                    Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
-                    Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
-                }
-
-                return CliExitCodes.Success;
-            }
-
-            Console.Error.WriteLine("Status: FAILED");
-            Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
-
-            return ToExitCode(result.ErrorCode);
+            return options.Measure
+                ? RunMeasure(options, cancellation.Token)
+                : RunCompress(options, cancellation.Token);
         }
         finally
         {
             Console.CancelKeyPress -= cancelHandler;
         }
+    }
+
+    private static int RunMeasure(
+        CompressCommandOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (!options.Quiet && !options.Json)
+        {
+            Console.WriteLine("CSO Measure");
+            Console.WriteLine("-----------");
+            Console.WriteLine($"Input: {SafeFullPath(options.InputPath)}");
+            Console.WriteLine("Mode:  measure only; no output file will be written.");
+        }
+
+        ConsoleCompressProgress? progress = options.Quiet || options.Json
+            ? null
+            : new ConsoleCompressProgress();
+
+        CsoMeasureEstimator estimator = new();
+        CsoMeasureResult result = estimator.Measure(
+            new CsoMeasureOptions(
+                options.InputPath,
+                CsoCompressor.DefaultBlockSize,
+                cancellationToken,
+                progress));
+
+        progress?.FinishLine();
+
+        if (options.Json)
+        {
+            JsonConsole.Write(new
+            {
+                command = "compress",
+                mode = "measure",
+                success = result.Success,
+                input = SafeFullPath(options.InputPath),
+                originalBytes = result.OriginalBytes,
+                estimatedBytes = result.EstimatedBytes,
+                estimatedRatio = result.EstimatedRatio,
+                estimatedSavedBytes = result.EstimatedSavedBytes,
+                estimatedGrowthBytes = result.EstimatedGrowthBytes,
+                totalBlocks = result.TotalBlocks,
+                compressedBlocks = result.CompressedBlocks,
+                storedBlocks = result.StoredBlocks,
+                profile = "smallest",
+                fast = false,
+                level = 9,
+                error = result.Success
+                    ? null
+                    : new
+                    {
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage
+                    }
+            });
+
+            return result.Success
+                ? CliExitCodes.Success
+                : ToExitCode(result.ErrorCode);
+        }
+
+        if (result.Success)
+        {
+            if (!options.Quiet)
+            {
+                Console.WriteLine("Status: OK");
+                Console.WriteLine($"Original size: {result.OriginalBytes:N0}");
+                Console.WriteLine($"Estimated CSO size: {result.EstimatedBytes:N0}");
+                Console.WriteLine($"Estimated ratio: {result.EstimatedRatio:P2}");
+                Console.WriteLine($"Estimated saved space: {result.EstimatedSavedBytes:N0}");
+
+                if (result.EstimatedGrowthBytes > 0)
+                {
+                    Console.WriteLine($"Estimated growth: {result.EstimatedGrowthBytes:N0}");
+                }
+
+                Console.WriteLine($"Total blocks: {result.TotalBlocks:N0}");
+                Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
+                Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
+                Console.WriteLine("Profile: smallest");
+                Console.WriteLine("Fast: false");
+                Console.WriteLine("Level: 9");
+            }
+
+            return CliExitCodes.Success;
+        }
+
+        Console.Error.WriteLine("Status: FAILED");
+        Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
+
+        return ToExitCode(result.ErrorCode);
+    }
+
+    private static int RunCompress(
+        CompressCommandOptions options,
+        CancellationToken cancellationToken)
+    {
+        string outputPath = options.OutputPath ?? new CsoOutputPathPolicy().CreateCompressionOutputPath(options.InputPath);
+        bool autoOutput = options.OutputPath is null;
+
+        if (!options.Quiet && !options.Json)
+        {
+            Console.WriteLine("CSO Compression");
+            Console.WriteLine("---------------");
+            Console.WriteLine($"Input:  {SafeFullPath(options.InputPath)}");
+            Console.WriteLine($"Output: {SafeFullPath(outputPath)}");
+
+            if (autoOutput)
+            {
+                Console.WriteLine("Output mode: same folder; auto-named without overwriting existing files.");
+            }
+        }
+
+        ConsoleCompressProgress? progress = options.Quiet || options.Json
+            ? null
+            : new ConsoleCompressProgress();
+
+        CsoCompressor compressor = new();
+        CsoCompressResult result = compressor.Compress(
+            new CsoCompressOptions(
+                options.InputPath,
+                outputPath,
+                options.Force && !autoOutput,
+                CsoCompressor.DefaultBlockSize,
+                cancellationToken,
+                progress));
+
+        progress?.FinishLine();
+
+        if (options.Json)
+        {
+            JsonConsole.Write(new
+            {
+                command = "compress",
+                mode = "write",
+                success = result.Success,
+                input = SafeFullPath(options.InputPath),
+                output = SafeFullPath(outputPath),
+                force = options.Force && !autoOutput,
+                autoOutput,
+                bytesRead = result.BytesRead,
+                bytesWritten = result.BytesWritten,
+                compressedBlocks = result.CompressedBlocks,
+                storedBlocks = result.StoredBlocks,
+                profile = "smallest",
+                fast = false,
+                level = 9,
+                error = result.Success
+                    ? null
+                    : new
+                    {
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage
+                    }
+            });
+
+            return result.Success
+                ? CliExitCodes.Success
+                : ToExitCode(result.ErrorCode);
+        }
+
+        if (result.Success)
+        {
+            if (!options.Quiet)
+            {
+                Console.WriteLine("Status: OK");
+                Console.WriteLine($"Bytes read: {result.BytesRead:N0}");
+                Console.WriteLine($"Bytes written: {result.BytesWritten:N0}");
+                Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
+                Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
+            }
+
+            return CliExitCodes.Success;
+        }
+
+        Console.Error.WriteLine("Status: FAILED");
+        Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
+
+        return ToExitCode(result.ErrorCode);
     }
 
     private static bool TryParseArgs(
@@ -116,7 +229,7 @@ public static class CompressCommand
     {
         options = default!;
 
-        if (args.Length < 3)
+        if (args.Length < 1)
         {
             return false;
         }
@@ -126,6 +239,7 @@ public static class CompressCommand
         bool force = false;
         bool quiet = false;
         bool json = false;
+        bool measure = false;
 
         for (int index = 1; index < args.Length; index++)
         {
@@ -141,6 +255,12 @@ public static class CompressCommand
 
                 outputPath = args[index + 1];
                 index++;
+                continue;
+            }
+
+            if (string.Equals(arg, "--measure", StringComparison.OrdinalIgnoreCase))
+            {
+                measure = true;
                 continue;
             }
 
@@ -165,8 +285,12 @@ public static class CompressCommand
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(inputPath) ||
-            string.IsNullOrWhiteSpace(outputPath))
+        if (string.IsNullOrWhiteSpace(inputPath))
+        {
+            return false;
+        }
+
+        if (measure && outputPath is not null)
         {
             return false;
         }
@@ -176,7 +300,8 @@ public static class CompressCommand
             outputPath,
             force,
             quiet,
-            json);
+            json,
+            measure);
 
         return true;
     }
@@ -189,8 +314,9 @@ public static class CompressCommand
             "OutputAlreadyExists" => CliExitCodes.OutputAlreadyExists,
             "NotEnoughDiskSpace" => CliExitCodes.NotEnoughDiskSpace,
             "OperationCanceled" => CliExitCodes.OperationCanceled,
-            "SameInputOutputPath" or "OutputPathIsDirectory" or "InvalidOutputPath" or "InvalidInputSize" => CliExitCodes.CannotWriteOutput,
+            "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" or "InvalidInputSize" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "CompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
+            "InputAccessDenied" or "MeasureIoFailed" => CliExitCodes.CannotWriteOutput,
             "InvalidBlockSize" or "BlockSizeTooLarge" => CliExitCodes.InvalidCsoHeader,
             _ => CliExitCodes.CompressionFailed
         };
@@ -210,15 +336,17 @@ public static class CompressCommand
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: hakamiq-cso compress <input.iso> -o <output.cso> [--force] [--quiet] [--json]");
+        Console.Error.WriteLine("Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--force] [--quiet] [--json]");
+        Console.Error.WriteLine("       hakamiq-cso compress <input.iso> --measure [--quiet] [--json]");
     }
 
     private sealed record CompressCommandOptions(
         string InputPath,
-        string OutputPath,
+        string? OutputPath,
         bool Force,
         bool Quiet,
-        bool Json);
+        bool Json,
+        bool Measure);
 
     private sealed class ConsoleCompressProgress : IProgress<CsoCompressProgress>
     {

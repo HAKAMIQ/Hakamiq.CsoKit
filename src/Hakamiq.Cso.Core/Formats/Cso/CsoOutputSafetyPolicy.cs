@@ -44,6 +44,16 @@ public sealed class CsoOutputSafetyPolicy
                 "Output path points to an existing directory.");
         }
 
+        string? outputDirectory = Path.GetDirectoryName(fullOutputPath);
+
+        if (!string.IsNullOrWhiteSpace(outputDirectory) &&
+            !Directory.Exists(outputDirectory))
+        {
+            return CsoOutputSafetyResult.Fail(
+                "OutputDirectoryNotFound",
+                "Output directory was not found. Hakamiq CsoKit does not create output folders automatically.");
+        }
+
         if (File.Exists(fullOutputPath) && !forceOverwrite)
         {
             return CsoOutputSafetyResult.Fail(
