@@ -1,93 +1,119 @@
 ﻿name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version without leading v, for example 0.4.0-beta.2"
-        required: true
-        default: "0.4.0-beta.2"
+push:
+tags:
+- "v*"
+workflow_dispatch:
+inputs:
+version:
+description: "Release version without leading v, for example 0.4.0-beta.2"
+required: true
+default: "0.4.0-beta.2"
 
 permissions:
-  contents: write
+contents: write
 
 jobs:
-  release:
-    name: Publish GitHub release
-    runs-on: windows-latest
+release:
+name: Publish GitHub release
+runs-on: windows-latest
 
-    defaults:
-      run:
-        shell: pwsh
+```
+defaults:
+  run:
+    shell: pwsh
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
+  - name: Setup .NET
+    uses: actions/setup-dotnet@v5
+    with:
+      dotnet-version: "10.0.x"
 
-      - name: Resolve release version
-        run: |
-          if ("${{ github.ref_type }}" -eq "tag") {
-            $tagName = "${{ github.ref_name }}"
-            $version = $tagName.TrimStart("v")
-          }
-          else {
-            $version = "${{ github.event.inputs.version }}"
-            $tagName = "v$version"
-          }
+  - name: .NET info
+    run: dotnet --info
 
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw "Release version is empty."
-          }
+  - name: Native toolchain info
+    run: |
+      cmake --version
 
-          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "RELEASE_TAG=$tagName" | Out-File -FilePath $env:GITHUB_ENV -Append
+      $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+      if (-not (Test-Path $vswhere)) {
+        throw "vswhere.exe was not found."
+      }
 
-          Write-Host "Release version: $version"
-          Write-Host "Release tag:     $tagName"
+      & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 
-      - name: Publish release package
-        run: .\scripts\Publish-Release.ps1 -Version $env:RELEASE_VERSION -Runtime win-x64
+  - name: Resolve release version
+    run: |
+      if ("${{ github.ref_type }}" -eq "tag") {
+        $tagName = "${{ github.ref_name }}"
+        $version = $tagName.TrimStart("v")
+      }
+      else {
+        $version = "${{ github.event.inputs.version }}"
+        $tagName = "v$version"
+      }
 
-      - name: Verify release package
-        run: .\scripts\Verify-Release.ps1 -Version $env:RELEASE_VERSION -Runtime win-x64
+      if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "Release version is empty."
+      }
 
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: hakamiq-csokit-${{ env.RELEASE_VERSION }}-win-x64
-          path: |
-            artifacts/release/*.zip
-            artifacts/publish/win-x64/SHA256SUMS.txt
-          if-no-files-found: error
+      "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+      "RELEASE_TAG=$tagName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $zipPath = "artifacts\release\hakamiq-csokit-$env:RELEASE_VERSION-win-x64.zip"
-          $shaPath = "artifacts\publish\win-x64\SHA256SUMS.txt"
+      Write-Host "Release version: $version"
+      Write-Host "Release tag:     $tagName"
 
-          if (-not (Test-Path $zipPath)) {
-            throw "Release ZIP was not found: $zipPath"
-          }
+  - name: Build native backend
+    run: .\scripts\Build-Native.ps1 -Configuration Release -Platform x64
 
-          if (-not (Test-Path $shaPath)) {
-            throw "SHA256 manifest was not found: $shaPath"
-          }
+  - name: Publish release package
+    run: .\scripts\Publish-Release.ps1 -Version $env:RELEASE_VERSION -Runtime win-x64
 
-          gh release create $env:RELEASE_TAG `
-            $zipPath `
-            $shaPath `
-            --title "Hakamiq CsoKit $env:RELEASE_VERSION" `
-            --notes "Hakamiq CsoKit $env:RELEASE_VERSION win-x64 release package."
+  - name: Verify release package
+    run: .\scripts\Verify-Release.ps1 -Version $env:RELEASE_VERSION -Runtime win-x64
 
+  - name: Upload workflow artifact
+    uses: actions/upload-artifact@v6
+    with:
+      name: hakamiq-csokit-${{ env.RELEASE_VERSION }}-win-x64
+      path: |
+        artifacts/release/*.zip
+        artifacts/publish/win-x64/SHA256SUMS.txt
+      if-no-files-found: error
+
+  - name: Create GitHub release
+    env:
+      GH_TOKEN: ${{ github.token }}
+    run: |
+      $zipPath = "artifacts\release\hakamiq-csokit-$env:RELEASE_VERSION-win-x64.zip"
+      $shaPath = "artifacts\publish\win-x64\SHA256SUMS.txt"
+
+      if (-not (Test-Path $zipPath)) {
+        throw "Release ZIP was not found: $zipPath"
+      }
+
+      if (-not (Test-Path $shaPath)) {
+        throw "SHA256 manifest was not found: $shaPath"
+      }
+
+      $releaseArgs = @(
+        "release",
+        "create",
+        $env:RELEASE_TAG,
+        $zipPath,
+        $shaPath,
+        "--title",
+        "Hakamiq CsoKit $env:RELEASE_VERSION",
+        "--notes",
+        "Hakamiq CsoKit $env:RELEASE_VERSION win-x64 release package."
+      )
+
+      gh @releaseArgs
+```
