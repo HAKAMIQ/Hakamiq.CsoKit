@@ -1,10 +1,17 @@
 # Hakamiq CsoKit stability fix notes
 
+## P2-I stable release promotion
+
+- Promote release defaults and package metadata to the 0.5.0 stable release.
+- Update GitHub Actions manual release defaults, release scripts, project versions, README, and release notes.
+- Keep compression behavior unchanged.
+
+
 
 
 ## P2-G release notes and finalization
 
-- Add `RELEASE_NOTES.md` for the 0.5.0-beta.1 win-x64 beta release.
+- Add `RELEASE_NOTES.md` for the 0.5.0 win-x64 stable release.
 - Add `scripts/Run-FinalReleaseGate.ps1` to chain release validation, published EXE smoke, release package publishing, release verification, and source package publishing.
 - Include `RELEASE_NOTES.md` in the release package and SHA256 manifest.
 - Make release verification require release notes and profile help text in the packaged executable.

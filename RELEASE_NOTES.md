@@ -1,6 +1,6 @@
-# Hakamiq CsoKit 0.5.0-beta.1
+# Hakamiq CsoKit 0.5.0
 
-Windows x64 beta release for PSP ISO/CSO workflows.
+Windows x64 stable release for PSP ISO/CSO workflows.
 
 ## Supported workflows
 
@@ -15,12 +15,12 @@ Windows x64 beta release for PSP ISO/CSO workflows.
 ## Compression profiles
 
 - `smallest`: default safe profile. Best managed compression size currently used by the tool.
-- `compat`: compatibility-oriented profile. Uses the same safe CSO behavior as `smallest` in this beta.
+- `compat`: compatibility-oriented profile. Uses the same safe CSO behavior as `smallest` in this release.
 - `fast`: faster compression path. Produces larger CSO files in exchange for speed.
 
 ## Validation status
 
-This beta line includes local gates for:
+This release includes local gates for:
 
 - Restore, build, and tests.
 - Forbidden public wording scan.
@@ -46,7 +46,7 @@ Keep the files together in the same folder.
 
 ## Native backend note
 
-The release package includes the native probe DLL. Compression remains on the managed safe path in this beta unless a future version explicitly enables a native compression backend.
+The release package includes the native probe DLL. Compression remains on the managed safe path in this release unless a future version explicitly enables a native compression backend.
 
 ## Scope
 

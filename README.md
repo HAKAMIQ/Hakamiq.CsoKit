@@ -4,7 +4,7 @@ Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
 
 It can inspect CSO files, verify their structure, decompress CSO files back to ISO, and compress ISO files to CSO.
 
-## Current beta support
+## Current support
 
 * CSO decompression
 * ISO to CSO compression
@@ -18,7 +18,7 @@ It can inspect CSO files, verify their structure, decompress CSO files back to I
 
 ## Download
 
-Download the latest beta package from the Releases page:
+Download the latest package from the Releases page:
 
 ```text
 hakamiq-csokit-*-win-x64.zip
