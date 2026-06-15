@@ -177,6 +177,27 @@ Successful artifacts are removed by default. To keep the generated CSO and resto
 
 The script writes uniquely named artifacts beside the input ISO, does not overwrite existing files, and does not create output folders automatically.
 
+
+## Developer release gate
+
+Use the consolidated release gate before release-oriented commits. It runs restore, build, tests, forbidden-term scan, help smoke, JSON argument smoke, the real roundtrip gate, and the profile roundtrip matrix.
+
+```powershell
+.\scripts\Run-ReleaseGate.ps1 -InputIso "D:\Games\PSP\game.iso"
+```
+
+For a quick gate that skips the real ISO conversion checks:
+
+```powershell
+.\scripts\Run-ReleaseGate.ps1 -SkipRealIsoGates
+```
+
+To keep generated real-gate artifacts for manual inspection:
+
+```powershell
+.\scripts\Run-ReleaseGate.ps1 -InputIso "D:\Games\PSP\game.iso" -KeepArtifacts
+```
+
 ## Native backend
 
 The release package includes:

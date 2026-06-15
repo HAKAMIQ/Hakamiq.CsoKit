@@ -5,6 +5,15 @@ This source package applies the stability fixes requested after the CSO readines
 
 
 
+## P2-E release gate consolidation
+
+- Add `scripts/Run-ReleaseGate.ps1` as a single local gate for pre-release validation.
+- Run restore, Debug build, tests, forbidden-term scan, help smoke, and JSON argument smoke from one script.
+- Chain the real roundtrip gate and profile roundtrip matrix when an input ISO is supplied.
+- Add `-SkipRealIsoGates` for quick non-ISO checks, plus `-KeepArtifacts` and `-Quiet` forwarding for real ISO gates.
+- Keep compression behavior unchanged.
+
+
 ## P2-D real profile roundtrip matrix
 
 - Add `scripts/Run-ProfileRoundtripMatrix.ps1` for real ISO -> CSO -> ISO verification across compression profiles.
