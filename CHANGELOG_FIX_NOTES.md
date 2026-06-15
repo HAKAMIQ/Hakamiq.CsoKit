@@ -1,5 +1,15 @@
 # Hakamiq CsoKit stability fix notes
 
+
+
+## P2-F published EXE smoke
+
+- Add `scripts/Run-PublishedExeSmoke.ps1` to publish and test the actual `hakamiq-cso.exe` output.
+- Smoke-test help, version, native-info, JSON argument output, measure output, verify, compress, and decompress through the published executable.
+- Run real ISO -> CSO -> ISO SHA256 checks for `smallest`, `compat`, and `fast` using the published executable.
+- Keep generated smoke artifacts under `artifacts/published-exe-smoke-work` only when `-KeepArtifacts` is supplied.
+- Keep compression behavior unchanged.
+
 This source package applies the stability fixes requested after the CSO readiness review.
 
 

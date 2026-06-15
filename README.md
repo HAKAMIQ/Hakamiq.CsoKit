@@ -198,6 +198,23 @@ To keep generated real-gate artifacts for manual inspection:
 .\scripts\Run-ReleaseGate.ps1 -InputIso "D:\Games\PSP\game.iso" -KeepArtifacts
 ```
 
+
+## Developer published EXE smoke
+
+Use the published EXE smoke after the consolidated release gate. It publishes `hakamiq-cso.exe` to `artifacts\published-exe-smoke\win-x64` and tests the executable directly instead of `dotnet run`.
+
+```powershell
+.\scripts\Run-PublishedExeSmoke.ps1 -InputIso "D:\Games\PSP\game.iso"
+```
+
+For a quick publish-only smoke that skips real ISO conversion checks:
+
+```powershell
+.\scripts\Run-PublishedExeSmoke.ps1 -SkipRealIsoGates
+```
+
+The full smoke runs help, version, native-info, JSON argument checks, measure checks, verify checks, and real ISO -> CSO -> ISO SHA256 checks for `smallest`, `compat`, and `fast` using the published executable. Generated smoke artifacts are removed after success unless `-KeepArtifacts` is supplied.
+
 ## Native backend
 
 The release package includes:
