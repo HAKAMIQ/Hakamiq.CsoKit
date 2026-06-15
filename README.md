@@ -155,6 +155,28 @@ By default, test artifacts are written beside the input ISO with unique safe nam
 
 The script does not overwrite existing files and does not create output folders automatically.
 
+## Developer profile roundtrip matrix
+
+Use the profile matrix before changing profile behavior. It runs a real ISO -> CSO -> ISO roundtrip for each selected compression profile, then compares SHA256 hashes and restored ISO sizes.
+
+```powershell
+.\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso"
+```
+
+By default, the matrix checks `smallest`, `compat`, and `fast`. To check specific profiles:
+
+```powershell
+.\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso" -Profiles smallest,fast
+```
+
+Successful artifacts are removed by default. To keep the generated CSO and restored ISO files for inspection:
+
+```powershell
+.\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso" -KeepArtifacts
+```
+
+The script writes uniquely named artifacts beside the input ISO, does not overwrite existing files, and does not create output folders automatically.
+
 ## Native backend
 
 The release package includes:

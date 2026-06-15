@@ -4,6 +4,16 @@ This source package applies the stability fixes requested after the CSO readines
 
 
 
+
+## P2-D real profile roundtrip matrix
+
+- Add `scripts/Run-ProfileRoundtripMatrix.ps1` for real ISO -> CSO -> ISO verification across compression profiles.
+- Check `smallest`, `compat`, and `fast` by default, with `-Profiles` for targeted profile runs.
+- Compare restored ISO SHA256 and byte size against the original ISO for every selected profile.
+- Print a final matrix with profile name, CSO size, ratio, restored ISO size, and status.
+- Remove successful test artifacts by default and support `-KeepArtifacts` for manual inspection.
+- Keep compression behavior unchanged.
+
 ## P2-C profile conflict and CLI contract tests
 
 - Add CLI contract tests for profile help text, invalid profile values, and `--fast` conflict handling.
