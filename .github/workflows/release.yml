@@ -114,8 +114,8 @@ jobs:
             $shaPath,
             "--title",
             "Hakamiq CsoKit $env:RELEASE_VERSION",
-            "--notes",
-            "Hakamiq CsoKit $env:RELEASE_VERSION win-x64 release package."
+            "--notes-file",
+            "RELEASE_NOTES.md"
           )
 
           gh @releaseArgs

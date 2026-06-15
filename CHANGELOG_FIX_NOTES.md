@@ -2,6 +2,15 @@
 
 
 
+## P2-G release notes and finalization
+
+- Add `RELEASE_NOTES.md` for the 0.5.0-beta.1 win-x64 beta release.
+- Add `scripts/Run-FinalReleaseGate.ps1` to chain release validation, published EXE smoke, release package publishing, release verification, and source package publishing.
+- Include `RELEASE_NOTES.md` in the release package and SHA256 manifest.
+- Make release verification require release notes and profile help text in the packaged executable.
+- Use `RELEASE_NOTES.md` as the GitHub Release notes source.
+- Keep compression behavior unchanged.
+
 ## P2-F published EXE smoke
 
 - Add `scripts/Run-PublishedExeSmoke.ps1` to publish and test the actual `hakamiq-cso.exe` output.

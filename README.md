@@ -33,6 +33,7 @@ hakamiq-cso.exe
 Hakamiq.Cso.Native.dll
 README.md
 LICENSE.txt
+RELEASE_NOTES.md
 SHA256SUMS.txt
 ```
 
@@ -214,6 +215,28 @@ For a quick publish-only smoke that skips real ISO conversion checks:
 ```
 
 The full smoke runs help, version, native-info, JSON argument checks, measure checks, verify checks, and real ISO -> CSO -> ISO SHA256 checks for `smallest`, `compat`, and `fast` using the published executable. Generated smoke artifacts are removed after success unless `-KeepArtifacts` is supplied.
+
+## Developer final release gate
+
+Use the final release gate after the consolidated release gate and published EXE smoke are stable. It checks project version fields, runs the release gate, runs the published EXE smoke, publishes the win-x64 release ZIP, verifies the release package, and creates the source package.
+
+```powershell
+.\scripts\Run-FinalReleaseGate.ps1 -InputIso "D:\Games\PSP\game.iso"
+```
+
+For local validation before committing the final-gate script itself, allow a dirty working tree and skip release package creation:
+
+```powershell
+.\scripts\Run-FinalReleaseGate.ps1 -InputIso "D:\Games\PSP\game.iso" -AllowDirty -SkipReleasePackage
+```
+
+For a quick non-ISO check:
+
+```powershell
+.\scripts\Run-FinalReleaseGate.ps1 -SkipRealIsoGates -SkipReleasePackage
+```
+
+The full final gate requires a clean Git working tree unless `-AllowDirty` is supplied.
 
 ## Native backend
 
