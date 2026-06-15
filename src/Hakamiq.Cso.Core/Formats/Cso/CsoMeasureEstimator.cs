@@ -55,6 +55,7 @@ public sealed class CsoMeasureEstimator
                 inputBytes,
                 blockSize,
                 totalBlocks,
+                options.Profile,
                 cancellationToken,
                 options.Progress);
         }
@@ -77,12 +78,13 @@ public sealed class CsoMeasureEstimator
         ulong inputBytes,
         int blockSize,
         int totalBlocks,
+        CsoCompressionProfile profile,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
         ulong estimatedBytes = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalBlocks + 1) * sizeof(uint)));
 
-        CsoCompressionWorker compressionWorker = new();
+        CsoCompressionWorker compressionWorker = new(profile);
         byte[] inputBuffer = new byte[blockSize];
 
         ulong totalRead = 0;

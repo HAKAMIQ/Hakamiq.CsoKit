@@ -3,6 +3,16 @@
 This source package applies the stability fixes requested after the CSO readiness review.
 
 
+## P2-A profiles foundation
+
+- Add first-class compression profiles for end-user workflows: `compat`, `fast`, and `smallest`.
+- Keep `smallest` as the default profile and preserve the current safe CSO behavior.
+- Add `--profile <compat|fast|smallest>` to compress and measure commands.
+- Add `--fast` as a short alias for `--profile fast`.
+- Route profile settings through `CsoCompressionWorker`, `CsoCompressor`, and `CsoMeasureEstimator` so write and measure paths use the same compression policy.
+- Report profile, fast mode, and logical level in text and JSON output.
+- Add focused tests for profile parsing and worker profile settings.
+
 ## P1-E real roundtrip gate
 
 - Add `scripts/Run-RoundtripGate.ps1` for real ISO -> CSO -> ISO verification.

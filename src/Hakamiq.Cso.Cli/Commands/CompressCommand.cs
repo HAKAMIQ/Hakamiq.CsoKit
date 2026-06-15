@@ -1,4 +1,4 @@
-﻿using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -48,6 +48,8 @@ public static class CompressCommand
         CompressCommandOptions options,
         CancellationToken cancellationToken)
     {
+        CsoCompressionProfileSettings profileSettings = CsoCompressionProfilePolicy.Create(options.Profile);
+
         if (!options.Quiet && !options.Json)
         {
             Console.WriteLine("CSO Measure");
@@ -66,7 +68,8 @@ public static class CompressCommand
                 options.InputPath,
                 CsoCompressor.DefaultBlockSize,
                 cancellationToken,
-                progress));
+                progress,
+                options.Profile));
 
         progress?.FinishLine();
 
@@ -86,9 +89,9 @@ public static class CompressCommand
                 totalBlocks = result.TotalBlocks,
                 compressedBlocks = result.CompressedBlocks,
                 storedBlocks = result.StoredBlocks,
-                profile = "smallest",
-                fast = false,
-                level = 9,
+                profile = profileSettings.CliName,
+                fast = profileSettings.IsFast,
+                level = profileSettings.Level,
                 error = result.Success
                     ? null
                     : new
@@ -121,9 +124,9 @@ public static class CompressCommand
                 Console.WriteLine($"Total blocks: {result.TotalBlocks:N0}");
                 Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
-                Console.WriteLine("Profile: smallest");
-                Console.WriteLine("Fast: false");
-                Console.WriteLine("Level: 9");
+                Console.WriteLine($"Profile: {profileSettings.CliName}");
+                Console.WriteLine($"Fast: {profileSettings.IsFast.ToString().ToLowerInvariant()}");
+                Console.WriteLine($"Level: {profileSettings.Level}");
             }
 
             return CliExitCodes.Success;
@@ -139,6 +142,7 @@ public static class CompressCommand
         CompressCommandOptions options,
         CancellationToken cancellationToken)
     {
+        CsoCompressionProfileSettings profileSettings = CsoCompressionProfilePolicy.Create(options.Profile);
         string outputPath = options.OutputPath ?? new CsoOutputPathPolicy().CreateCompressionOutputPath(options.InputPath);
         bool autoOutput = options.OutputPath is null;
 
@@ -167,7 +171,8 @@ public static class CompressCommand
                 options.Force && !autoOutput,
                 CsoCompressor.DefaultBlockSize,
                 cancellationToken,
-                progress));
+                progress,
+                options.Profile));
 
         progress?.FinishLine();
 
@@ -186,9 +191,9 @@ public static class CompressCommand
                 bytesWritten = result.BytesWritten,
                 compressedBlocks = result.CompressedBlocks,
                 storedBlocks = result.StoredBlocks,
-                profile = "smallest",
-                fast = false,
-                level = 9,
+                profile = profileSettings.CliName,
+                fast = profileSettings.IsFast,
+                level = profileSettings.Level,
                 error = result.Success
                     ? null
                     : new
@@ -212,6 +217,9 @@ public static class CompressCommand
                 Console.WriteLine($"Bytes written: {result.BytesWritten:N0}");
                 Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
+                Console.WriteLine($"Profile: {profileSettings.CliName}");
+                Console.WriteLine($"Fast: {profileSettings.IsFast.ToString().ToLowerInvariant()}");
+                Console.WriteLine($"Level: {profileSettings.Level}");
             }
 
             return CliExitCodes.Success;
@@ -240,6 +248,9 @@ public static class CompressCommand
         bool quiet = false;
         bool json = false;
         bool measure = false;
+        bool fastAlias = false;
+        bool profileExplicit = false;
+        CsoCompressionProfile profile = CsoCompressionProfilePolicy.DefaultProfile;
 
         for (int index = 1; index < args.Length; index++)
         {
@@ -255,6 +266,41 @@ public static class CompressCommand
 
                 outputPath = args[index + 1];
                 index++;
+                continue;
+            }
+
+            if (string.Equals(arg, "--profile", StringComparison.OrdinalIgnoreCase))
+            {
+                if (profileExplicit || index + 1 >= args.Length)
+                {
+                    return false;
+                }
+
+                if (!CsoCompressionProfilePolicy.TryParse(args[index + 1], out CsoCompressionProfile parsedProfile))
+                {
+                    return false;
+                }
+
+                if (fastAlias && parsedProfile != CsoCompressionProfile.Fast)
+                {
+                    return false;
+                }
+
+                profile = parsedProfile;
+                profileExplicit = true;
+                index++;
+                continue;
+            }
+
+            if (string.Equals(arg, "--fast", StringComparison.OrdinalIgnoreCase))
+            {
+                if (profileExplicit && profile != CsoCompressionProfile.Fast)
+                {
+                    return false;
+                }
+
+                profile = CsoCompressionProfile.Fast;
+                fastAlias = true;
                 continue;
             }
 
@@ -301,7 +347,8 @@ public static class CompressCommand
             force,
             quiet,
             json,
-            measure);
+            measure,
+            profile);
 
         return true;
     }
@@ -336,8 +383,8 @@ public static class CompressCommand
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--force] [--quiet] [--json]");
-        Console.Error.WriteLine("       hakamiq-cso compress <input.iso> --measure [--quiet] [--json]");
+        Console.Error.WriteLine("Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <compat|fast|smallest>] [--fast] [--force] [--quiet] [--json]");
+        Console.Error.WriteLine("       hakamiq-cso compress <input.iso> --measure [--profile <compat|fast|smallest>] [--fast] [--quiet] [--json]");
     }
 
     private sealed record CompressCommandOptions(
@@ -346,7 +393,8 @@ public static class CompressCommand
         bool Force,
         bool Quiet,
         bool Json,
-        bool Measure);
+        bool Measure,
+        CsoCompressionProfile Profile);
 
     private sealed class ConsoleCompressProgress : IProgress<CsoCompressProgress>
     {

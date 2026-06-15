@@ -165,3 +165,42 @@ public sealed class CsoCompressionDecisionTests
         Assert.True(result.OutputLength < source.Length);
     }
 }
+
+public sealed class CsoCompressionProfileWorkerTests
+{
+    [Fact]
+    public void CompressionWorker_WithFastProfile_ReportsFastLogicalLevel()
+    {
+        byte[] source = new byte[2048];
+        SectorJob job = new(
+            BlockIndex: 0,
+            SourceOffset: 0,
+            SourceLength: source.Length,
+            SourceBuffer: source);
+
+        CsoCompressionWorker worker = new(CsoCompressionProfile.Fast);
+        SectorResult result = worker.Compress(job);
+
+        Assert.False(result.IsStored);
+        Assert.Equal(CompressionMethod.RawDeflate, result.Method);
+        Assert.Equal(1, result.Level);
+    }
+
+    [Fact]
+    public void CompressionWorker_WithSmallestProfile_ReportsSmallestLogicalLevel()
+    {
+        byte[] source = new byte[2048];
+        SectorJob job = new(
+            BlockIndex: 0,
+            SourceOffset: 0,
+            SourceLength: source.Length,
+            SourceBuffer: source);
+
+        CsoCompressionWorker worker = new(CsoCompressionProfile.Smallest);
+        SectorResult result = worker.Compress(job);
+
+        Assert.False(result.IsStored);
+        Assert.Equal(CompressionMethod.RawDeflate, result.Method);
+        Assert.Equal(9, result.Level);
+    }
+}

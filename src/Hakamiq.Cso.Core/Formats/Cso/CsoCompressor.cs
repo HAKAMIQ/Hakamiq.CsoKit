@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -103,6 +103,7 @@ public sealed class CsoCompressor
                         inputBytes,
                         blockSize,
                         totalBlocks,
+                        options.Profile,
                         cancellationToken,
                         options.Progress);
 
@@ -148,6 +149,7 @@ public sealed class CsoCompressor
         ulong inputBytes,
         int blockSize,
         int totalBlocks,
+        CsoCompressionProfile profile,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
@@ -155,7 +157,7 @@ public sealed class CsoCompressor
 
         CsoIndexBuilder indexBuilder = new(totalBlocks);
         CsoOrderedOutputWriter outputWriter = new(output);
-        CsoCompressionWorker compressionWorker = new();
+        CsoCompressionWorker compressionWorker = new(profile);
         byte[] inputBuffer = new byte[blockSize];
 
         outputWriter.ReserveDataStart(dataStart);

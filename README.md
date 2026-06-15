@@ -11,6 +11,7 @@ It can inspect CSO files, verify their structure, decompress CSO files back to I
 * CSO info and verification
 * ISO compression measurement without writing an output file
 * Same-folder default output naming without creating output folders
+* Compression profiles: `compat`, `fast`, and `smallest`
 * Progress output
 * Safe Ctrl+C cancellation
 * JSON output for scripts and integrations
@@ -73,6 +74,16 @@ Compress ISO to CSO in the same folder:
 .\hakamiq-cso.exe compress ".\game.iso"
 ```
 
+Choose a compression profile:
+
+```powershell
+.\hakamiq-cso.exe compress ".\game.iso" --profile compat
+.\hakamiq-cso.exe compress ".\game.iso" --profile fast
+.\hakamiq-cso.exe compress ".\game.iso" --profile smallest
+```
+
+`smallest` is the default safe profile. `compat` keeps the same compatibility-focused CSO format behavior. `fast` favors faster compression and may produce a larger file. The short alias `--fast` is equivalent to `--profile fast`.
+
 If `.\game.cso` already exists, Hakamiq CsoKit writes `.\game - Hakamiq Converted.cso` instead. If that also exists, it writes `.\game - Hakamiq Converted 2.cso`, then keeps counting upward.
 
 Use an explicit output file when needed:
@@ -85,6 +96,7 @@ Estimate CSO size without writing an output file:
 
 ```powershell
 .\hakamiq-cso.exe compress ".\game.iso" --measure
+.\hakamiq-cso.exe compress ".\game.iso" --measure --profile fast
 ```
 
 Decompress CSO to ISO in the same folder:

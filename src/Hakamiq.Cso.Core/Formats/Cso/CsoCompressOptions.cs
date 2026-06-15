@@ -6,4 +6,5 @@ public sealed record CsoCompressOptions(
     bool ForceOverwrite,
     uint BlockSize = CsoCompressor.DefaultBlockSize,
     CancellationToken CancellationToken = default,
-    IProgress<CsoCompressProgress>? Progress = null);
+    IProgress<CsoCompressProgress>? Progress = null,
+    CsoCompressionProfile Profile = CsoCompressionProfile.Smallest);

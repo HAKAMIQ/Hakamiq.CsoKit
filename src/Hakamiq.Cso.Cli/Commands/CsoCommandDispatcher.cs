@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -60,8 +60,8 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  hakamiq-cso info <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso verify <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso decompress <input.cso> [-o <output.iso>] [--force] [--quiet] [--json]");
-        Console.WriteLine("  hakamiq-cso compress <input.iso> [-o <output.cso>] [--force] [--quiet] [--json]");
-        Console.WriteLine("  hakamiq-cso compress <input.iso> --measure [--quiet] [--json]");
+        Console.WriteLine("  hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <compat|fast|smallest>] [--fast] [--force] [--quiet] [--json]");
+        Console.WriteLine("  hakamiq-cso compress <input.iso> --measure [--profile <compat|fast|smallest>] [--fast] [--quiet] [--json]");
         Console.WriteLine("  hakamiq-cso native-info");
         Console.WriteLine();
         Console.WriteLine("Commands:");
