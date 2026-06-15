@@ -1,4 +1,4 @@
-﻿# Hakamiq CsoKit
+# Hakamiq CsoKit
 
 Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
 
@@ -123,6 +123,23 @@ Use full paths:
 ```
 
 Hakamiq CsoKit does not create output folders automatically. If you pass `-o`, the destination folder must already exist.
+
+
+## Developer roundtrip gate
+
+Use the roundtrip gate before changing compression behavior. It compresses a real ISO to CSO, decompresses the generated CSO back to ISO, then compares SHA256 hashes.
+
+```powershell
+.\scripts\Run-RoundtripGate.ps1 -InputIso "D:\Games\PSP\game.iso"
+```
+
+By default, test artifacts are written beside the input ISO with unique safe names and removed after a successful match. To keep the generated CSO and restored ISO for inspection:
+
+```powershell
+.\scripts\Run-RoundtripGate.ps1 -InputIso "D:\Games\PSP\game.iso" -KeepArtifacts
+```
+
+The script does not overwrite existing files and does not create output folders automatically.
 
 ## Native backend
 

@@ -1,7 +1,15 @@
-﻿# Hakamiq CsoKit stability fix notes
+# Hakamiq CsoKit stability fix notes
 
 This source package applies the stability fixes requested after the CSO readiness review.
 
+
+## P1-E real roundtrip gate
+
+- Add `scripts/Run-RoundtripGate.ps1` for real ISO -> CSO -> ISO verification.
+- Compare original and restored ISO SHA256 hashes after the roundtrip.
+- Write uniquely named gate artifacts beside the input ISO and remove them after successful verification by default.
+- Add `-KeepArtifacts` for manual inspection of generated CSO and restored ISO.
+- Avoid overwriting existing files and avoid automatic output-folder creation in the gate script.
 
 ## P1-D output path policy
 
