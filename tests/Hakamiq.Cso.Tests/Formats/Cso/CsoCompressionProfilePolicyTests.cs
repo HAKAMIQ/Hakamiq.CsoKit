@@ -65,4 +65,15 @@ public sealed class CsoCompressionProfilePolicyTests
         Assert.Equal("compat|fast|smallest", CsoCompressionProfilePolicy.SupportedNamesText);
     }
 
+    [Theory]
+    [InlineData(CsoCompressionProfile.Compat, "compat")]
+    [InlineData(CsoCompressionProfile.Fast, "fast")]
+    [InlineData(CsoCompressionProfile.Smallest, "smallest")]
+    public void GetCliName_WithSupportedProfile_ReturnsPublicName(
+        CsoCompressionProfile profile,
+        string expectedName)
+    {
+        Assert.Equal(expectedName, CsoCompressionProfilePolicy.GetCliName(profile));
+    }
+
 }

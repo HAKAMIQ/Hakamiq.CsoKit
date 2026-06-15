@@ -47,6 +47,17 @@ public static class CsoCompressionProfilePolicy
         }
     }
 
+    public static string GetCliName(CsoCompressionProfile profile)
+    {
+        return profile switch
+        {
+            CsoCompressionProfile.Compat => CompatName,
+            CsoCompressionProfile.Fast => FastName,
+            CsoCompressionProfile.Smallest => SmallestName,
+            _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unsupported CSO compression profile."),
+        };
+    }
+
     public static CsoCompressionProfileSettings Create(CsoCompressionProfile profile)
     {
         return profile switch

@@ -84,6 +84,8 @@ Choose a compression profile:
 
 `smallest` is the default safe profile. `compat` keeps the same compatibility-focused CSO format behavior. `fast` favors faster compression and may produce a larger file. The short alias `--fast` is equivalent to `--profile fast`.
 
+Do not combine `--fast` with `--profile compat` or `--profile smallest`. Use `--profile fast`, use `--fast`, or remove the conflicting option.
+
 If `.\game.cso` already exists, Hakamiq CsoKit writes `.\game - Hakamiq Converted.cso` instead. If that also exists, it writes `.\game - Hakamiq Converted 2.cso`, then keeps counting upward.
 
 Use an explicit output file when needed:
@@ -201,7 +203,7 @@ Example measure profile block:
 }
 ```
 
-Invalid profile values return a clear argument error. Supported profiles are `compat`, `fast`, and `smallest`.
+Invalid profile values return a clear argument error. Supported profiles are `compat`, `fast`, and `smallest`. Conflicting profile options return the same argument error contract in JSON mode and a concise message in text mode.
 
 Manual PowerShell use usually works best with the default text output.
 

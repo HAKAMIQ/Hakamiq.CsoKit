@@ -3,6 +3,15 @@
 This source package applies the stability fixes requested after the CSO readiness review.
 
 
+
+## P2-C profile conflict and CLI contract tests
+
+- Add CLI contract tests for profile help text, invalid profile values, and `--fast` conflict handling.
+- Verify text and JSON argument errors use stable exit code and error fields.
+- Allow `--profile fast --fast` while rejecting `--fast` with `compat` or `smallest`.
+- Add a profile-name helper so conflict messages can name the resolved public profile.
+- Keep compression behavior unchanged.
+
 ## P2-B profile output polish and JSON contract
 
 - Add a stable JSON contract for compress write and measure output with `schemaVersion`, `options.profile`, `metrics`, and structured error fields.

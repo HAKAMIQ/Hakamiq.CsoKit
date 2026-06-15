@@ -273,7 +273,7 @@ public static class CompressCommand
 
                 if (fastAlias && parsedProfile != CsoCompressionProfile.Fast)
                 {
-                    errorMessage = "--fast cannot be combined with a non-fast compression profile.";
+                    errorMessage = BuildFastProfileConflictMessage(parsedProfile);
                     return false;
                 }
 
@@ -287,7 +287,7 @@ public static class CompressCommand
             {
                 if (profileExplicit && profile != CsoCompressionProfile.Fast)
                 {
-                    errorMessage = "--fast cannot be combined with a non-fast compression profile.";
+                    errorMessage = BuildFastProfileConflictMessage(profile);
                     return false;
                 }
 
@@ -346,6 +346,12 @@ public static class CompressCommand
             profile);
 
         return true;
+    }
+
+    private static string BuildFastProfileConflictMessage(CsoCompressionProfile profile)
+    {
+        string profileName = CsoCompressionProfilePolicy.GetCliName(profile);
+        return $"--fast cannot be combined with --profile {profileName}. Use --profile fast or remove --fast.";
     }
 
     private static int ToExitCode(string? errorCode)
