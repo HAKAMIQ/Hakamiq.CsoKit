@@ -175,8 +175,33 @@ Add `--json` when another program or script needs structured output:
 
 ```powershell
 .\hakamiq-cso.exe verify ".\game.cso" --json
-.\hakamiq-cso.exe compress ".\game.iso" --measure --json
+.\hakamiq-cso.exe compress ".\game.iso" --measure --profile smallest --json
+.\hakamiq-cso.exe compress ".\game.iso" --profile fast --json
 ```
+
+Compress and measure JSON output includes `schemaVersion`, `command`, `mode`, `success`, `options.profile`, `metrics`, and `error` when a command fails. The profile object reports the resolved profile name, whether fast mode is enabled, and the logical compression level.
+
+Example measure profile block:
+
+```json
+{
+  "schemaVersion": 1,
+  "command": "compress",
+  "mode": "measure",
+  "success": true,
+  "options": {
+    "profile": {
+      "name": "smallest",
+      "fast": false,
+      "level": 9
+    },
+    "force": false,
+    "autoOutput": false
+  }
+}
+```
+
+Invalid profile values return a clear argument error. Supported profiles are `compat`, `fast`, and `smallest`.
 
 Manual PowerShell use usually works best with the default text output.
 

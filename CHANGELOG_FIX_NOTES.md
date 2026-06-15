@@ -3,6 +3,14 @@
 This source package applies the stability fixes requested after the CSO readiness review.
 
 
+## P2-B profile output polish and JSON contract
+
+- Add a stable JSON contract for compress write and measure output with `schemaVersion`, `options.profile`, `metrics`, and structured error fields.
+- Report resolved profile information through a single profile output model: name, fast flag, and logical level.
+- Improve invalid profile and conflicting profile argument messages.
+- Make help and usage text read supported public profile names from one policy source.
+- Add focused tests for profile JSON contract shape and supported profile text.
+
 ## P2-A profiles foundation
 
 - Add first-class compression profiles for end-user workflows: `compat`, `fast`, and `smallest`.

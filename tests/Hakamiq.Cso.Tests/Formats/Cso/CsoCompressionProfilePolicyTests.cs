@@ -58,4 +58,11 @@ public sealed class CsoCompressionProfilePolicyTests
         Assert.False(settings.IsFast);
         Assert.Equal(9, settings.Level);
     }
+
+    [Fact]
+    public void SupportedNamesText_ListsPublicProfilesForHelpAndErrors()
+    {
+        Assert.Equal("compat|fast|smallest", CsoCompressionProfilePolicy.SupportedNamesText);
+    }
+
 }

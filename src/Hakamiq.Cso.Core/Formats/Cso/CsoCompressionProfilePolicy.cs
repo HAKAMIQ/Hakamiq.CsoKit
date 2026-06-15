@@ -8,6 +8,15 @@ public static class CsoCompressionProfilePolicy
     public const string FastName = "fast";
     public const string SmallestName = "smallest";
 
+    public static readonly string[] SupportedNames =
+    [
+        CompatName,
+        FastName,
+        SmallestName,
+    ];
+
+    public static string SupportedNamesText => string.Join("|", SupportedNames);
+
     public static CsoCompressionProfile DefaultProfile => CsoCompressionProfile.Smallest;
 
     public static bool TryParse(string? value, out CsoCompressionProfile profile)

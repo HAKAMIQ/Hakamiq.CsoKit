@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hakamiq.Cso.Core\Hakamiq.Cso.Core.csproj" />
+    <ProjectReference Include="..\..\src\Hakamiq.Cso.Cli\Hakamiq.Cso.Cli.csproj" />
   </ItemGroup>
 
 </Project>

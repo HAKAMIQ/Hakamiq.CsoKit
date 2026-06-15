@@ -6,9 +6,19 @@ public static class CompressCommand
 {
     public static int Run(string[] args)
     {
-        if (!TryParseArgs(args, out CompressCommandOptions options))
+        if (!TryParseArgs(args, out CompressCommandOptions options, out string? parseError))
         {
-            PrintUsage();
+            string errorMessage = parseError ?? "Invalid compress command arguments.";
+
+            if (HasJsonFlag(args))
+            {
+                JsonConsole.Write(CsoCompressJsonContract.ArgumentError(errorMessage));
+            }
+            else
+            {
+                PrintUsage(errorMessage);
+            }
+
             return CliExitCodes.InvalidArguments;
         }
 
@@ -75,31 +85,10 @@ public static class CompressCommand
 
         if (options.Json)
         {
-            JsonConsole.Write(new
-            {
-                command = "compress",
-                mode = "measure",
-                success = result.Success,
-                input = SafeFullPath(options.InputPath),
-                originalBytes = result.OriginalBytes,
-                estimatedBytes = result.EstimatedBytes,
-                estimatedRatio = result.EstimatedRatio,
-                estimatedSavedBytes = result.EstimatedSavedBytes,
-                estimatedGrowthBytes = result.EstimatedGrowthBytes,
-                totalBlocks = result.TotalBlocks,
-                compressedBlocks = result.CompressedBlocks,
-                storedBlocks = result.StoredBlocks,
-                profile = profileSettings.CliName,
-                fast = profileSettings.IsFast,
-                level = profileSettings.Level,
-                error = result.Success
-                    ? null
-                    : new
-                    {
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage
-                    }
-            });
+            JsonConsole.Write(CsoCompressJsonContract.Measure(
+                SafeFullPath(options.InputPath),
+                profileSettings,
+                result));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -124,9 +113,7 @@ public static class CompressCommand
                 Console.WriteLine($"Total blocks: {result.TotalBlocks:N0}");
                 Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
-                Console.WriteLine($"Profile: {profileSettings.CliName}");
-                Console.WriteLine($"Fast: {profileSettings.IsFast.ToString().ToLowerInvariant()}");
-                Console.WriteLine($"Level: {profileSettings.Level}");
+                PrintProfileSummary(profileSettings);
             }
 
             return CliExitCodes.Success;
@@ -134,6 +121,7 @@ public static class CompressCommand
 
         Console.Error.WriteLine("Status: FAILED");
         Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
+        PrintProfileSummary(profileSettings, Console.Error);
 
         return ToExitCode(result.ErrorCode);
     }
@@ -178,30 +166,13 @@ public static class CompressCommand
 
         if (options.Json)
         {
-            JsonConsole.Write(new
-            {
-                command = "compress",
-                mode = "write",
-                success = result.Success,
-                input = SafeFullPath(options.InputPath),
-                output = SafeFullPath(outputPath),
-                force = options.Force && !autoOutput,
+            JsonConsole.Write(CsoCompressJsonContract.Write(
+                SafeFullPath(options.InputPath),
+                SafeFullPath(outputPath),
+                options.Force && !autoOutput,
                 autoOutput,
-                bytesRead = result.BytesRead,
-                bytesWritten = result.BytesWritten,
-                compressedBlocks = result.CompressedBlocks,
-                storedBlocks = result.StoredBlocks,
-                profile = profileSettings.CliName,
-                fast = profileSettings.IsFast,
-                level = profileSettings.Level,
-                error = result.Success
-                    ? null
-                    : new
-                    {
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage
-                    }
-            });
+                profileSettings,
+                result));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -217,9 +188,7 @@ public static class CompressCommand
                 Console.WriteLine($"Bytes written: {result.BytesWritten:N0}");
                 Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
-                Console.WriteLine($"Profile: {profileSettings.CliName}");
-                Console.WriteLine($"Fast: {profileSettings.IsFast.ToString().ToLowerInvariant()}");
-                Console.WriteLine($"Level: {profileSettings.Level}");
+                PrintProfileSummary(profileSettings);
             }
 
             return CliExitCodes.Success;
@@ -227,18 +196,22 @@ public static class CompressCommand
 
         Console.Error.WriteLine("Status: FAILED");
         Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
+        PrintProfileSummary(profileSettings, Console.Error);
 
         return ToExitCode(result.ErrorCode);
     }
 
     private static bool TryParseArgs(
         string[] args,
-        out CompressCommandOptions options)
+        out CompressCommandOptions options,
+        out string? errorMessage)
     {
         options = default!;
+        errorMessage = null;
 
         if (args.Length < 1)
         {
+            errorMessage = "Missing input ISO path.";
             return false;
         }
 
@@ -259,8 +232,15 @@ public static class CompressCommand
             if (string.Equals(arg, "-o", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(arg, "--output", StringComparison.OrdinalIgnoreCase))
             {
-                if (outputPath is not null || index + 1 >= args.Length)
+                if (outputPath is not null)
                 {
+                    errorMessage = "Output path was provided more than once.";
+                    return false;
+                }
+
+                if (index + 1 >= args.Length)
+                {
+                    errorMessage = "Missing output path after -o.";
                     return false;
                 }
 
@@ -271,18 +251,29 @@ public static class CompressCommand
 
             if (string.Equals(arg, "--profile", StringComparison.OrdinalIgnoreCase))
             {
-                if (profileExplicit || index + 1 >= args.Length)
+                if (profileExplicit)
                 {
+                    errorMessage = "Compression profile was provided more than once.";
                     return false;
                 }
 
-                if (!CsoCompressionProfilePolicy.TryParse(args[index + 1], out CsoCompressionProfile parsedProfile))
+                if (index + 1 >= args.Length)
                 {
+                    errorMessage = $"Missing profile value after --profile. Supported profiles: {CsoCompressionProfilePolicy.SupportedNamesText}.";
+                    return false;
+                }
+
+                string profileValue = args[index + 1];
+
+                if (!CsoCompressionProfilePolicy.TryParse(profileValue, out CsoCompressionProfile parsedProfile))
+                {
+                    errorMessage = $"Invalid compression profile '{profileValue}'. Supported profiles: {CsoCompressionProfilePolicy.SupportedNamesText}.";
                     return false;
                 }
 
                 if (fastAlias && parsedProfile != CsoCompressionProfile.Fast)
                 {
+                    errorMessage = "--fast cannot be combined with a non-fast compression profile.";
                     return false;
                 }
 
@@ -296,6 +287,7 @@ public static class CompressCommand
             {
                 if (profileExplicit && profile != CsoCompressionProfile.Fast)
                 {
+                    errorMessage = "--fast cannot be combined with a non-fast compression profile.";
                     return false;
                 }
 
@@ -328,16 +320,19 @@ public static class CompressCommand
                 continue;
             }
 
+            errorMessage = $"Unknown compress option: {arg}";
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(inputPath))
         {
+            errorMessage = "Missing input ISO path.";
             return false;
         }
 
         if (measure && outputPath is not null)
         {
+            errorMessage = "--measure does not write output and cannot be combined with -o.";
             return false;
         }
 
@@ -381,10 +376,34 @@ public static class CompressCommand
         }
     }
 
-    private static void PrintUsage()
+    private static bool HasJsonFlag(string[] args)
     {
-        Console.Error.WriteLine("Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <compat|fast|smallest>] [--fast] [--force] [--quiet] [--json]");
-        Console.Error.WriteLine("       hakamiq-cso compress <input.iso> --measure [--profile <compat|fast|smallest>] [--fast] [--quiet] [--json]");
+        return args.Any(static arg => string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void PrintProfileSummary(CsoCompressionProfileSettings profileSettings)
+    {
+        PrintProfileSummary(profileSettings, Console.Out);
+    }
+
+    private static void PrintProfileSummary(
+        CsoCompressionProfileSettings profileSettings,
+        TextWriter writer)
+    {
+        writer.WriteLine($"Profile: {profileSettings.CliName}");
+        writer.WriteLine($"Fast: {profileSettings.IsFast.ToString().ToLowerInvariant()}");
+        writer.WriteLine($"Level: {profileSettings.Level}");
+    }
+
+    private static void PrintUsage(string? errorMessage = null)
+    {
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            Console.Error.WriteLine(errorMessage);
+        }
+
+        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--force] [--quiet] [--json]");
+        Console.Error.WriteLine($"       hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--quiet] [--json]");
     }
 
     private sealed record CompressCommandOptions(
