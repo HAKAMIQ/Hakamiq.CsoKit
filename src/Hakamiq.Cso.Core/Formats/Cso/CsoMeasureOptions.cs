@@ -5,4 +5,5 @@ public sealed record CsoMeasureOptions(
     uint BlockSize = CsoCompressor.DefaultBlockSize,
     CancellationToken CancellationToken = default,
     IProgress<CsoCompressProgress>? Progress = null,
-    CsoCompressionProfile Profile = CsoCompressionProfile.Smallest);
+    CsoCompressionProfile Profile = CsoCompressionProfile.Smallest,
+    bool UseZopfli = false);

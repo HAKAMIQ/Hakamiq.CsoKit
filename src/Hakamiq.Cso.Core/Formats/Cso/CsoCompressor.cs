@@ -1,4 +1,7 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
+using System.Runtime.ExceptionServices;
+using Hakamiq.Cso.Core.Native;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -44,11 +47,35 @@ public sealed class CsoCompressor
                 return CsoCompressResult.Fail("InvalidBlockSize", "CSO block size is zero.");
             }
 
+            if (options.BlockSize < DefaultBlockSize)
+            {
+                return CsoCompressResult.Fail(
+                    "InvalidBlockSize",
+                    $"CSO block size must be at least {DefaultBlockSize:N0} bytes.");
+            }
+
+            if (!IsPowerOfTwo(options.BlockSize))
+            {
+                return CsoCompressResult.Fail("InvalidBlockSize", "CSO block size must be a power of two.");
+            }
+
             if (options.BlockSize > CsoConstants.MaxSupportedBlockSize)
             {
                 return CsoCompressResult.Fail(
                     "BlockSizeTooLarge",
                     $"CSO block size is too large. Maximum supported block size is {CsoConstants.MaxSupportedBlockSize:N0} bytes.");
+            }
+
+            if (options.WorkerCount <= 0)
+            {
+                return CsoCompressResult.Fail("InvalidThreadCount", "Compression worker count must be greater than zero.");
+            }
+
+            if (options.UseZopfli && !NativeCsoRuntime.GetInfo().IsAvailable)
+            {
+                return CsoCompressResult.Fail(
+                    "NativeZopfliUnavailable",
+                    "Zopfli compression requires the native backend DLL to be available.");
             }
 
             FileInfo inputInfo = new(options.InputPath);
@@ -104,6 +131,8 @@ public sealed class CsoCompressor
                         blockSize,
                         totalBlocks,
                         options.Profile,
+                        options.WorkerCount,
+                        options.UseZopfli,
                         cancellationToken,
                         options.Progress);
 
@@ -150,6 +179,48 @@ public sealed class CsoCompressor
         int blockSize,
         int totalBlocks,
         CsoCompressionProfile profile,
+        int workerCount,
+        bool useZopfli,
+        CancellationToken cancellationToken,
+        IProgress<CsoCompressProgress>? progress)
+    {
+        int effectiveWorkerCount = Math.Min(workerCount, totalBlocks);
+
+        if (effectiveWorkerCount <= 1)
+        {
+            return CompressBlocksSequential(
+                input,
+                output,
+                inputBytes,
+                blockSize,
+                totalBlocks,
+                profile,
+                useZopfli,
+                cancellationToken,
+                progress);
+        }
+
+        return CompressBlocksParallel(
+            input,
+            output,
+            inputBytes,
+            blockSize,
+            totalBlocks,
+            profile,
+            effectiveWorkerCount,
+            useZopfli,
+            cancellationToken,
+            progress);
+    }
+
+    private static CsoCompressResult CompressBlocksSequential(
+        FileStream input,
+        FileStream output,
+        ulong inputBytes,
+        int blockSize,
+        int totalBlocks,
+        CsoCompressionProfile profile,
+        bool useZopfli,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
@@ -157,7 +228,7 @@ public sealed class CsoCompressor
 
         CsoIndexBuilder indexBuilder = new(totalBlocks);
         CsoOrderedOutputWriter outputWriter = new(output);
-        CsoCompressionWorker compressionWorker = new(profile);
+        CsoCompressionWorker compressionWorker = new(profile, useZopfli);
         byte[] inputBuffer = new byte[blockSize];
 
         outputWriter.ReserveDataStart(dataStart);
@@ -231,6 +302,260 @@ public sealed class CsoCompressor
             storedBlocks);
     }
 
+    private static CsoCompressResult CompressBlocksParallel(
+        FileStream input,
+        FileStream output,
+        ulong inputBytes,
+        int blockSize,
+        int totalBlocks,
+        CsoCompressionProfile profile,
+        int workerCount,
+        bool useZopfli,
+        CancellationToken cancellationToken,
+        IProgress<CsoCompressProgress>? progress)
+    {
+        ulong dataStart = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalBlocks + 1) * sizeof(uint)));
+
+        CsoIndexBuilder indexBuilder = new(totalBlocks);
+        CsoOrderedOutputWriter outputWriter = new(output);
+        outputWriter.ReserveDataStart(dataStart);
+
+        using CancellationTokenSource pipelineCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using BlockingCollection<SectorJob> jobs = new(boundedCapacity: Math.Max(2, workerCount * 2));
+        using BlockingCollection<SectorResult> results = new(boundedCapacity: Math.Max(2, workerCount * 2));
+
+        object failureLock = new();
+        ExceptionDispatchInfo? failure = null;
+
+        void CaptureFailure(Exception exception)
+        {
+            lock (failureLock)
+            {
+                failure ??= ExceptionDispatchInfo.Capture(exception);
+            }
+
+            pipelineCancellation.Cancel();
+        }
+
+        ExceptionDispatchInfo? GetFailure()
+        {
+            lock (failureLock)
+            {
+                return failure;
+            }
+        }
+
+        CancellationToken pipelineToken = pipelineCancellation.Token;
+
+        ReportProgress(progress, completedBlocks: 0, totalBlocks, bytesRead: 0, inputBytes);
+
+        Task producer = Task.Run(() =>
+        {
+            try
+            {
+                ulong totalRead = 0;
+                byte[] inputBuffer = new byte[blockSize];
+
+                for (int blockIndex = 0; blockIndex < totalBlocks; blockIndex++)
+                {
+                    pipelineToken.ThrowIfCancellationRequested();
+
+                    int expectedBytes = checked((int)Math.Min((ulong)blockSize, inputBytes - totalRead));
+                    int read = CsoBlockReader.ReadExactlyOrLess(input, inputBuffer.AsSpan(0, expectedBytes));
+
+                    if (read != expectedBytes)
+                    {
+                        throw new EndOfStreamException($"Unexpected end of ISO. Expected {expectedBytes:N0} bytes, got {read:N0}.");
+                    }
+
+                    byte[] blockBuffer = inputBuffer.AsSpan(0, read).ToArray();
+                    SectorJob job = new(
+                        blockIndex,
+                        totalRead,
+                        read,
+                        blockBuffer);
+
+                    jobs.Add(job, pipelineToken);
+                    totalRead += (ulong)read;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || GetFailure() is not null)
+            {
+            }
+            catch (Exception ex)
+            {
+                CaptureFailure(ex);
+            }
+            finally
+            {
+                jobs.CompleteAdding();
+            }
+        });
+
+        Task[] workers = new Task[workerCount];
+
+        for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
+        {
+            workers[workerIndex] = Task.Run(() =>
+            {
+                try
+                {
+                    CsoCompressionWorker compressionWorker = new(profile, useZopfli);
+
+                    foreach (SectorJob job in jobs.GetConsumingEnumerable(pipelineToken))
+                    {
+                        SectorResult result = compressionWorker.Compress(job);
+                        results.Add(result, pipelineToken);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || GetFailure() is not null)
+                {
+                }
+                catch (Exception ex)
+                {
+                    CaptureFailure(ex);
+                }
+            });
+        }
+
+        Task resultCloser = Task.Run(() =>
+        {
+            try
+            {
+                Task.WaitAll(workers);
+            }
+            catch (AggregateException ex)
+            {
+                foreach (Exception inner in ex.Flatten().InnerExceptions)
+                {
+                    if (inner is not OperationCanceledException || (!cancellationToken.IsCancellationRequested && GetFailure() is null))
+                    {
+                        CaptureFailure(inner);
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                results.CompleteAdding();
+            }
+        });
+
+        SortedDictionary<int, SectorResult> pendingResults = new();
+        int nextBlockToWrite = 0;
+        ulong totalWrittenSourceBytes = 0;
+        int compressedBlocks = 0;
+        int storedBlocks = 0;
+
+        try
+        {
+            while (nextBlockToWrite < totalBlocks)
+            {
+                ThrowIfFailure(GetFailure());
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!pendingResults.TryGetValue(nextBlockToWrite, out SectorResult? nextResult))
+                {
+                    try
+                    {
+                        if (results.TryTake(out SectorResult? result, millisecondsTimeout: 100, pipelineToken))
+                        {
+                            if (result.BlockIndex < nextBlockToWrite || pendingResults.ContainsKey(result.BlockIndex))
+                            {
+                                throw new InvalidDataException("Compression pipeline returned a duplicate or stale sector result.");
+                            }
+
+                            pendingResults.Add(result.BlockIndex, result);
+                        }
+                        else if (results.IsCompleted)
+                        {
+                            throw new InvalidDataException("Compression pipeline completed before all sector results were written.");
+                        }
+
+                        continue;
+                    }
+                    catch (OperationCanceledException) when (GetFailure() is not null)
+                    {
+                        ThrowIfFailure(GetFailure());
+                    }
+                }
+
+                if (nextResult is null)
+                {
+                    throw new InvalidDataException("Compression pipeline returned an empty sector result.");
+                }
+
+                pendingResults.Remove(nextBlockToWrite);
+
+                ulong blockOffset = outputWriter.Position;
+                indexBuilder.AddSectorOffset(blockOffset, nextResult.IsStored);
+                outputWriter.Write(nextResult);
+
+                if (nextResult.IsStored)
+                {
+                    storedBlocks++;
+                }
+                else
+                {
+                    compressedBlocks++;
+                }
+
+                totalWrittenSourceBytes += (ulong)nextResult.SourceLength;
+                nextBlockToWrite++;
+
+                if (nextBlockToWrite == totalBlocks ||
+                    nextBlockToWrite % ProgressReportBlockInterval == 0)
+                {
+                    ReportProgress(progress, nextBlockToWrite, totalBlocks, totalWrittenSourceBytes, inputBytes);
+                }
+            }
+
+            producer.Wait();
+            resultCloser.Wait();
+            ThrowIfFailure(GetFailure());
+
+            indexBuilder.AddFinalOffset(outputWriter.Position);
+
+            ulong bytesWritten = outputWriter.Position;
+
+            WriteHeaderAndIndex(
+                output,
+                inputBytes,
+                (uint)blockSize,
+                indexBuilder.Entries);
+
+            ReportProgress(progress, totalBlocks, totalBlocks, totalWrittenSourceBytes, inputBytes);
+
+            return CsoCompressResult.Ok(
+                totalWrittenSourceBytes,
+                bytesWritten,
+                compressedBlocks,
+                storedBlocks);
+        }
+        finally
+        {
+            pipelineCancellation.Cancel();
+            WaitForPipelineTask(producer);
+            WaitForPipelineTask(resultCloser);
+        }
+    }
+
+    private static void ThrowIfFailure(ExceptionDispatchInfo? failure)
+    {
+        failure?.Throw();
+    }
+
+    private static void WaitForPipelineTask(Task task)
+    {
+        try
+        {
+            task.Wait();
+        }
+        catch
+        {
+        }
+    }
+
     private static void WriteHeaderAndIndex(
         FileStream output,
         ulong uncompressedSize,
@@ -273,6 +598,11 @@ public sealed class CsoCompressor
         }
 
         return requiredBytes + OutputSafetyBufferBytes;
+    }
+
+    private static bool IsPowerOfTwo(uint value)
+    {
+        return value != 0 && (value & (value - 1)) == 0;
     }
 
     private static string CreateUniqueTempOutputPath(string fullOutputPath)

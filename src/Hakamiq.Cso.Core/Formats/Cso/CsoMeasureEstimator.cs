@@ -1,3 +1,5 @@
+using Hakamiq.Cso.Core.Native;
+
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed class CsoMeasureEstimator
@@ -24,11 +26,30 @@ public sealed class CsoMeasureEstimator
                 return CsoMeasureResult.Fail("InvalidBlockSize", "CSO block size is zero.");
             }
 
+            if (options.BlockSize < CsoCompressor.DefaultBlockSize)
+            {
+                return CsoMeasureResult.Fail(
+                    "InvalidBlockSize",
+                    $"CSO block size must be at least {CsoCompressor.DefaultBlockSize:N0} bytes.");
+            }
+
+            if (!IsPowerOfTwo(options.BlockSize))
+            {
+                return CsoMeasureResult.Fail("InvalidBlockSize", "CSO block size must be a power of two.");
+            }
+
             if (options.BlockSize > CsoConstants.MaxSupportedBlockSize)
             {
                 return CsoMeasureResult.Fail(
                     "BlockSizeTooLarge",
                     $"CSO block size is too large. Maximum supported block size is {CsoConstants.MaxSupportedBlockSize:N0} bytes.");
+            }
+
+            if (options.UseZopfli && !NativeCsoRuntime.GetInfo().IsAvailable)
+            {
+                return CsoMeasureResult.Fail(
+                    "NativeZopfliUnavailable",
+                    "Zopfli compression requires the native backend DLL to be available.");
             }
 
             FileInfo inputInfo = new(options.InputPath);
@@ -56,6 +77,7 @@ public sealed class CsoMeasureEstimator
                 blockSize,
                 totalBlocks,
                 options.Profile,
+                options.UseZopfli,
                 cancellationToken,
                 options.Progress);
         }
@@ -79,12 +101,13 @@ public sealed class CsoMeasureEstimator
         int blockSize,
         int totalBlocks,
         CsoCompressionProfile profile,
+        bool useZopfli,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
         ulong estimatedBytes = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalBlocks + 1) * sizeof(uint)));
 
-        CsoCompressionWorker compressionWorker = new(profile);
+        CsoCompressionWorker compressionWorker = new(profile, useZopfli);
         byte[] inputBuffer = new byte[blockSize];
 
         ulong totalRead = 0;
@@ -157,5 +180,10 @@ public sealed class CsoMeasureEstimator
             totalBlocks,
             bytesRead,
             totalBytes));
+    }
+
+    private static bool IsPowerOfTwo(uint value)
+    {
+        return value != 0 && (value & (value - 1)) == 0;
     }
 }

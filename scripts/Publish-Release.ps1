@@ -165,6 +165,7 @@ throw "Native DLL was not copied to publish directory: $PublishNativeDllPath"
 
 Copy-Item (Join-Path $RepoRoot "README.md") (Join-Path $PublishDir "README.md") -Force
 Copy-Item (Join-Path $RepoRoot "LICENSE.txt") (Join-Path $PublishDir "LICENSE.txt") -Force
+Copy-Item (Join-Path $RepoRoot "THIRD_PARTY_NOTICES.md") (Join-Path $PublishDir "THIRD_PARTY_NOTICES.md") -Force
 
 $ReleaseNotesPath = Join-Path $RepoRoot "RELEASE_NOTES.md"
 if (Test-Path $ReleaseNotesPath) {
@@ -187,7 +188,7 @@ if ($LASTEXITCODE -ne 0) {
 throw "Help smoke test failed."
 }
 
-foreach ($required in @("info", "verify", "decompress", "compress", "native-info", "--json", "--quiet", "--profile", "compat|fast|smallest")) {
+foreach ($required in @("info", "verify", "decompress", "compress", "native-info", "--json", "--quiet", "--profile", "--threads", "--block", "--zopfli", "compat|fast|smallest")) {
 if ($helpText -notmatch [regex]::Escape($required)) {
 throw "Help output does not contain required text: $required"
 }

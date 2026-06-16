@@ -9,7 +9,10 @@ public static class CsoCompressJsonContract
     public static CsoMeasureJsonOutput Measure(
         string input,
         CsoCompressionProfileSettings profileSettings,
-        CsoMeasureResult result)
+        CsoMeasureResult result,
+        uint blockSize = CsoCompressor.DefaultBlockSize,
+        int workerCount = 1,
+        bool useZopfli = false)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -22,8 +25,11 @@ public static class CsoCompressJsonContract
             input,
             new CsoCompressJsonOptions(
                 CsoProfileOutput.From(profileSettings),
-                Force: false,
-                AutoOutput: false),
+                false,
+                false,
+                blockSize,
+                workerCount,
+                useZopfli),
             new CsoMeasureJsonMetrics(
                 result.OriginalBytes,
                 result.EstimatedBytes,
@@ -42,7 +48,10 @@ public static class CsoCompressJsonContract
         bool force,
         bool autoOutput,
         CsoCompressionProfileSettings profileSettings,
-        CsoCompressResult result)
+        CsoCompressResult result,
+        uint blockSize = CsoCompressor.DefaultBlockSize,
+        int workerCount = 1,
+        bool useZopfli = false)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -57,7 +66,10 @@ public static class CsoCompressJsonContract
             new CsoCompressJsonOptions(
                 CsoProfileOutput.From(profileSettings),
                 force,
-                autoOutput),
+                autoOutput,
+                blockSize,
+                workerCount,
+                useZopfli),
             new CsoWriteJsonMetrics(
                 result.BytesRead,
                 result.BytesWritten,
@@ -87,7 +99,10 @@ public static class CsoCompressJsonContract
 public sealed record CsoCompressJsonOptions(
     CsoProfileOutput Profile,
     bool Force,
-    bool AutoOutput);
+    bool AutoOutput,
+    uint BlockSize,
+    int Threads,
+    bool Zopfli);
 
 public sealed record CsoMeasureJsonMetrics(
     ulong OriginalBytes,

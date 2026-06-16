@@ -150,6 +150,29 @@ public sealed class CsoCliContractTests
         Assert.Equal(1, profile.GetProperty("level").GetInt32());
     }
 
+    [Fact]
+    public void CompressOptions_JsonExposeThreadsBlockAndZopfli()
+    {
+        CapturedRun run = Capture(() => CsoCommandDispatcher.Run([
+            "compress",
+            "missing.iso",
+            "--measure",
+            "--threads=3",
+            "--block=4K",
+            "--zopfli",
+            "--json"]));
+
+        Assert.Equal(CliExitCodes.InputNotFound, run.ExitCode);
+        Assert.Empty(run.StdErr);
+
+        using JsonDocument document = JsonDocument.Parse(run.StdOut);
+        JsonElement options = document.RootElement.GetProperty("options");
+
+        Assert.Equal(4096U, options.GetProperty("blockSize").GetUInt32());
+        Assert.Equal(3, options.GetProperty("threads").GetInt32());
+        Assert.True(options.GetProperty("zopfli").GetBoolean());
+    }
+
     private static CapturedRun Capture(Func<int> run)
     {
         TextWriter originalOut = Console.Out;

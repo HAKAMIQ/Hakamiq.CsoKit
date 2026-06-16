@@ -320,7 +320,7 @@ try {
         $lines.Add('```')
     }
     $lines.Add("")
-    $lines.Add("Note: native-runtime means the final executable can load the native backend. It does not claim that compression itself is native-accelerated.")
+    $lines.Add("Note: native-runtime means the final executable can load the native backend. Native compression is used only for explicit options such as --zopfli.")
     $lines.Add("")
     $lines.Add("| Tool | Backend | Profile | InputBytes | CsoBytes | Ratio | CompressSeconds | VerifySeconds | DecompressSeconds | Roundtrip |")
     $lines.Add("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")

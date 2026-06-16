@@ -55,6 +55,7 @@ $ReleaseDir = Join-Path $ArtifactsDir "release"
 $ExePath = Join-Path $PublishDir "hakamiq-cso.exe"
 $NativeDllPath = Join-Path $PublishDir "Hakamiq.Cso.Native.dll"
 $ReleaseNotesPath = Join-Path $PublishDir "RELEASE_NOTES.md"
+$ThirdPartyNoticesPath = Join-Path $PublishDir "THIRD_PARTY_NOTICES.md"
 $ManifestPath = Join-Path $PublishDir "SHA256SUMS.txt"
 $ZipPath = Join-Path $ReleaseDir "hakamiq-csokit-$Version-$Runtime.zip"
 $ZipCheckDir = Join-Path $ArtifactsDir "verify-release-check"
@@ -84,6 +85,10 @@ if (-not (Test-Path $ReleaseNotesPath)) {
     throw "Release notes were not found: $ReleaseNotesPath"
 }
 
+if (-not (Test-Path $ThirdPartyNoticesPath)) {
+    throw "Third-party notices were not found: $ThirdPartyNoticesPath"
+}
+
 if (-not (Test-Path $ManifestPath)) {
     throw "SHA256 manifest was not found: $ManifestPath"
 }
@@ -110,7 +115,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Help command failed."
 }
 
-foreach ($required in @("info", "verify", "decompress", "compress", "native-info", "--json", "--quiet", "--profile", "compat|fast|smallest")) {
+foreach ($required in @("info", "verify", "decompress", "compress", "native-info", "--json", "--quiet", "--profile", "--threads", "--block", "--zopfli", "compat|fast|smallest")) {
     if ($helpText -notmatch [regex]::Escape($required)) {
         throw "Help output does not contain required text: $required"
     }
@@ -126,7 +131,7 @@ if ($manifestLines.Count -lt 4) {
 
 $manifestText = $manifestLines | Out-String
 
-foreach ($requiredFile in @("hakamiq-cso.exe", "Hakamiq.Cso.Native.dll", "README.md", "LICENSE.txt", "RELEASE_NOTES.md")) {
+foreach ($requiredFile in @("hakamiq-cso.exe", "Hakamiq.Cso.Native.dll", "README.md", "LICENSE.txt", "RELEASE_NOTES.md", "THIRD_PARTY_NOTICES.md")) {
     if ($manifestText -notmatch [regex]::Escape($requiredFile)) {
         throw "SHA256 manifest does not contain required file: $requiredFile"
     }
@@ -142,6 +147,7 @@ try {
     $ZipNativeDllPath = Join-Path $ZipCheckDir "Hakamiq.Cso.Native.dll"
     $ZipManifestPath = Join-Path $ZipCheckDir "SHA256SUMS.txt"
     $ZipReleaseNotesPath = Join-Path $ZipCheckDir "RELEASE_NOTES.md"
+    $ZipThirdPartyNoticesPath = Join-Path $ZipCheckDir "THIRD_PARTY_NOTICES.md"
 
     if (-not (Test-Path $ZipExePath)) {
         throw "Executable was not found inside ZIP: $ZipExePath"
@@ -159,11 +165,15 @@ try {
         throw "Release notes were not found inside ZIP: $ZipReleaseNotesPath"
     }
 
+    if (-not (Test-Path $ZipThirdPartyNoticesPath)) {
+        throw "Third-party notices were not found inside ZIP: $ZipThirdPartyNoticesPath"
+    }
+
     Test-BlockedArtifacts -RootPath $ZipCheckDir -Context "ZIP"
 
     $zipManifestText = Get-Content $ZipManifestPath | Out-String
 
-    foreach ($requiredFile in @("hakamiq-cso.exe", "Hakamiq.Cso.Native.dll", "README.md", "LICENSE.txt", "RELEASE_NOTES.md")) {
+    foreach ($requiredFile in @("hakamiq-cso.exe", "Hakamiq.Cso.Native.dll", "README.md", "LICENSE.txt", "RELEASE_NOTES.md", "THIRD_PARTY_NOTICES.md")) {
         if ($zipManifestText -notmatch [regex]::Escape($requiredFile)) {
             throw "ZIP SHA256 manifest does not contain required file: $requiredFile"
         }

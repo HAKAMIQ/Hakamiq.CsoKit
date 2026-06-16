@@ -7,21 +7,24 @@ This scorecard is a release blocker list. It is not marketing copy. Do not push 
 | Correctness / roundtrip | Real PSP input passes compress, verify, decompress, and SHA256 restore for smallest, compat, and fast. | PASS locally |
 | Release engineering | Run-FinalReleaseGate.ps1 produces release ZIP, source ZIP, verifies packages, and checks final native backend. | PASS locally with AllowDirty; repeat after commit on clean tree |
 | Native loading | Final published hakamiq-cso.exe native-info reports Backend native, Native available True, and Native version 0.5.0 ABI 1. | PASS locally |
-| Native runtime policy | Native backend is ABI and fallback infrastructure only in 0.5.0. | PASS |
-| Native compression performance | Native compression acceleration claim is rejected because managed fast is not slower in current benchmark evidence. | PASS as rejection of claim |
-| Compression competitiveness | Hakamiq is faster than maxcso on this sample, but maxcso produces a smaller CSO. | NOT 10/10 |
+| Third-party notices | `THIRD_PARTY_NOTICES.md` documents bundled Zopfli source as Apache License 2.0 and release verification requires the notice in ZIP/manifest. | PASS locally |
+| Native runtime policy | Native backend remains optional and fallback-safe; explicit `--zopfli` requires native availability. | PASS locally |
+| Native compression performance | Native Zopfli raw-Deflate smoke roundtrips through CLI with `--zopfli --threads=2 --block=4K`. | PASS locally |
+| Compression competitiveness | Multi-candidate managed Deflate, optional native Zopfli, configurable block size, and threaded pipeline are implemented. Real maxcso comparison must be rerun. | PENDING BENCHMARK |
 | Workflow safety | Release workflow runs only from pushed v* tags and does not expose workflow_dispatch. | PASS locally |
 | Signing readiness | Final commit and v0.5.0 tag still need signing and GitHub verification. | PENDING |
 | Official release | No official release until clean-tree final gate, signed commit, signed tag, GitHub release, and attestations are verified. | BLOCKED |
 
 ## Latest local validation
 
-- Final Release Gate: PASS
+- Release Gate without real ISO: PASS
 - Final native-info: Backend native / Native available True / Native version 0.5.0 ABI 1
+- Zopfli CLI smoke: PASS
+- Third-party notice package check: PASS
 - Benchmark CSV: artifact-only local evidence, not committed
-- Benchmark roundtrip: PASS for all rows
+- Benchmark roundtrip: previous sample PASS for all rows before the threaded/Zopfli compression phase
 
-## Latest benchmark evidence
+## Previous benchmark evidence
 
 | Tool | Backend | Profile | CsoBytes | CompressSeconds | Roundtrip |
 |---|---|---|---:|---:|---|
@@ -31,9 +34,9 @@ This scorecard is a release blocker list. It is not marketing copy. Do not push 
 | hakamiq-managed | managed-runtime | fast | 312978389 | 3.068 | PASS |
 | maxcso | external | default | 265247498 | 19.327 | PASS |
 
-## R1 architecture decision
+## Current compression decision
 
-- Do not claim native compression performance improvement for 0.5.0.
-- Do not keep native block store hints or any native compression hot-path change in production.
 - Keep native backend loading, ABI verification, native-info, final native release gate, and managed fallback testing.
-- Treat future compression parallelism, pipelining, or native acceleration as a separate measured phase, not part of R1.
+- Keep `--zopfli` explicit because Zopfli is intentionally much slower than the default profiles.
+- Keep threaded compression bounded and ordered so CSO index output remains deterministic.
+- Rerun the real ISO benchmark against maxcso after committing this phase.

@@ -1,5 +1,7 @@
 ﻿using Hakamiq.Cso.Core.Formats.Cso;
 
+using Hakamiq.Cso.Core.Native;
+
 namespace Hakamiq.Cso.Tests.Formats.Cso;
 
 public sealed class CsoCompressorTests
@@ -64,6 +66,84 @@ public sealed class CsoCompressorTests
         }
         finally
         {
+            File.Delete(isoPath);
+            File.Delete(csoPath);
+        }
+    }
+
+    [Fact]
+    public void Compress_WithParallelWorkersAndLargerBlockSize_CreatesRoundtrippableCso()
+    {
+        byte[] original = Enumerable.Range(0, 65536 + 123)
+            .Select(index => (byte)((index * 31) % 251))
+            .ToArray();
+
+        string isoPath = CreateTempPath(".iso");
+        string csoPath = CreateTempPath(".cso");
+        string outputIsoPath = CreateTempPath(".out.iso");
+
+        try
+        {
+            File.WriteAllBytes(isoPath, original);
+
+            CsoCompressor compressor = new();
+            CsoCompressResult compressResult = compressor.Compress(
+                new CsoCompressOptions(
+                    isoPath,
+                    csoPath,
+                    ForceOverwrite: false,
+                    BlockSize: 4096,
+                    WorkerCount: 4));
+
+            Assert.True(compressResult.Success, compressResult.ErrorMessage);
+
+            CsoHeaderReadResult headerResult = new CsoHeaderReader().Read(csoPath);
+            Assert.True(headerResult.Success, headerResult.ErrorMessage);
+            Assert.NotNull(headerResult.Header);
+            Assert.Equal(4096U, headerResult.Header.BlockSize);
+
+            CsoDecompressor decompressor = new();
+            CsoDecompressResult decompressResult = decompressor.Decompress(
+                new CsoDecompressOptions(csoPath, outputIsoPath, ForceOverwrite: false));
+
+            Assert.True(decompressResult.Success, decompressResult.ErrorMessage);
+            Assert.Equal(original, File.ReadAllBytes(outputIsoPath));
+        }
+        finally
+        {
+            File.Delete(isoPath);
+            File.Delete(csoPath);
+            File.Delete(outputIsoPath);
+        }
+    }
+
+    [Fact]
+    public void Compress_WithZopfliAndDisabledNative_ReturnsClearFailure()
+    {
+        string? previous = Environment.GetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable);
+        string isoPath = CreateTempPath(".iso");
+        string csoPath = CreateTempPath(".cso");
+
+        try
+        {
+            Environment.SetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable, "1");
+            File.WriteAllBytes(isoPath, new byte[4096]);
+
+            CsoCompressor compressor = new();
+            CsoCompressResult result = compressor.Compress(
+                new CsoCompressOptions(
+                    isoPath,
+                    csoPath,
+                    ForceOverwrite: false,
+                    UseZopfli: true));
+
+            Assert.False(result.Success);
+            Assert.Equal("NativeZopfliUnavailable", result.ErrorCode);
+            Assert.False(File.Exists(csoPath));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable, previous);
             File.Delete(isoPath);
             File.Delete(csoPath);
         }

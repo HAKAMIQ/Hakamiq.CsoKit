@@ -142,6 +142,9 @@ function Test-HelpSmoke {
         "hakamiq-cso compress <input.iso>",
         "--profile <compat|fast|smallest>",
         "[--fast]",
+        "--threads <n>",
+        "--block <bytes>",
+        "--zopfli",
         "native-info"
     )) {
         if ($text -notmatch [regex]::Escape($required)) {
@@ -446,3 +449,5 @@ Write-Host "Published EXE smoke result"
 Write-Host "--------------------------"
 Write-Host "Status: PASS"
 Write-Host "Executable: $ExePath"
+
+$global:LASTEXITCODE = 0

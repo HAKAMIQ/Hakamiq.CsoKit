@@ -61,8 +61,8 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  hakamiq-cso info <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso verify <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso decompress <input.cso> [-o <output.iso>] [--force] [--quiet] [--json]");
-        Console.WriteLine($"  hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--force] [--quiet] [--json]");
-        Console.WriteLine($"  hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--quiet] [--json]");
+        Console.WriteLine($"  hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--force] [--quiet] [--json]");
+        Console.WriteLine($"  hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--block <bytes>] [--zopfli] [--quiet] [--json]");
         Console.WriteLine("  hakamiq-cso native-info");
         Console.WriteLine();
         Console.WriteLine("Commands:");

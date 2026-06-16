@@ -10,13 +10,20 @@ Windows x64 stable release for PSP ISO/CSO workflows.
 - Compress ISO to CSO.
 - Estimate CSO size without writing output.
 - Use compression profiles: `smallest`, `compat`, and `fast`.
+- Use configurable `--threads`, `--block`, and optional native `--zopfli`.
 - Use text output for manual PowerShell work or JSON output for automation.
 
 ## Compression profiles
 
-- `smallest`: default safe profile. Best managed compression size currently used by the tool.
-- `compat`: compatibility-oriented profile. Uses the same safe CSO behavior as `smallest` in this release.
+- `smallest`: default safe profile. Tries multiple managed Deflate candidates per block and chooses the smallest valid sector.
+- `compat`: compatibility-oriented profile. Uses a conservative safe Deflate path.
 - `fast`: faster compression path. Produces larger CSO files in exchange for speed.
+
+## Advanced compression
+
+- `--threads <n>` enables a bounded parallel compression pipeline with ordered CSO output.
+- `--block <bytes>` supports larger power-of-two CSO block sizes for users who want better ratios and can accept reader compatibility tradeoffs.
+- `--zopfli` enables slower native Zopfli raw-Deflate trials. It requires `Hakamiq.Cso.Native.dll` to be available beside the executable.
 
 ## Validation status
 
@@ -40,13 +47,14 @@ The win-x64 release package contains:
 - `README.md`
 - `LICENSE.txt`
 - `RELEASE_NOTES.md`
+- `THIRD_PARTY_NOTICES.md`
 - `SHA256SUMS.txt`
 
 Keep the files together in the same folder.
 
 ## Native backend note
 
-The release package includes the native probe DLL. Compression remains on the managed safe path in this release unless a future version explicitly enables a native compression backend.
+The release package includes the native DLL used for runtime probing and optional Zopfli compression trials. Normal compression remains fully functional without `--zopfli`; explicit `--zopfli` fails clearly if the native backend is unavailable.
 
 ## Scope
 

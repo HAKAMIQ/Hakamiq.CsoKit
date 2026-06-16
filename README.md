@@ -12,6 +12,9 @@ It can inspect CSO files, verify their structure, decompress CSO files back to I
 * ISO compression measurement without writing an output file
 * Same-folder default output naming without creating output folders
 * Compression profiles: `compat`, `fast`, and `smallest`
+* Multi-candidate Deflate selection for the `smallest` profile
+* Configurable compression threads and CSO block size
+* Optional native Zopfli Deflate trials with `--zopfli`
 * Progress output
 * Safe Ctrl+C cancellation
 * JSON output for scripts and integrations
@@ -34,6 +37,7 @@ Hakamiq.Cso.Native.dll
 README.md
 LICENSE.txt
 RELEASE_NOTES.md
+THIRD_PARTY_NOTICES.md
 SHA256SUMS.txt
 ```
 
@@ -83,9 +87,22 @@ Choose a compression profile:
 .\hakamiq-cso.exe compress ".\game.iso" --profile smallest
 ```
 
-`smallest` is the default safe profile. `compat` keeps the same compatibility-focused CSO format behavior. `fast` favors faster compression and may produce a larger file. The short alias `--fast` is equivalent to `--profile fast`.
+`smallest` is the default safe profile and tries multiple managed Deflate candidates per block before choosing the smallest valid CSO sector. `compat` keeps a conservative compatibility-focused Deflate path. `fast` favors faster compression and may produce a larger file. The short alias `--fast` is equivalent to `--profile fast`.
 
 Do not combine `--fast` with `--profile compat` or `--profile smallest`. Use `--profile fast`, use `--fast`, or remove the conflicting option.
+
+Tune compression when needed:
+
+```powershell
+.\hakamiq-cso.exe compress ".\game.iso" --threads 8
+.\hakamiq-cso.exe compress ".\game.iso" --block 16K
+.\hakamiq-cso.exe compress ".\game.iso" --zopfli
+.\hakamiq-cso.exe compress ".\game.iso" --threads=8 --block=16K --zopfli
+```
+
+`--threads` controls compression workers. `--block` accepts byte values and `K` or `M` suffixes, must be at least `2048`, and must be a power of two. Larger blocks can improve compression but may reduce compatibility with older readers.
+
+`--zopfli` enables slower native Zopfli raw-Deflate trials for maximum size reduction. It requires `Hakamiq.Cso.Native.dll` beside the executable.
 
 If `.\game.cso` already exists, Hakamiq CsoKit writes `.\game - Hakamiq Converted.cso` instead. If that also exists, it writes `.\game - Hakamiq Converted 2.cso`, then keeps counting upward.
 
@@ -93,6 +110,7 @@ Use an explicit output file when needed:
 
 ```powershell
 .\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso"
+.\hakamiq-cso.exe compress ".\game.iso" --output-path ".\game.cso"
 ```
 
 Estimate CSO size without writing an output file:
@@ -252,7 +270,7 @@ Check it with:
 .\hakamiq-cso.exe native-info
 ```
 
-If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE.
+If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE. The `--zopfli` option requires this native backend.
 
 ## JSON output
 
@@ -264,7 +282,7 @@ Add `--json` when another program or script needs structured output:
 .\hakamiq-cso.exe compress ".\game.iso" --profile fast --json
 ```
 
-Compress and measure JSON output includes `schemaVersion`, `command`, `mode`, `success`, `options.profile`, `metrics`, and `error` when a command fails. The profile object reports the resolved profile name, whether fast mode is enabled, and the logical compression level.
+Compress and measure JSON output includes `schemaVersion`, `command`, `mode`, `success`, `options.profile`, `options.blockSize`, `options.threads`, `options.zopfli`, `metrics`, and `error` when a command fails. The profile object reports the resolved profile name, whether fast mode is enabled, and the logical compression level.
 
 Example measure profile block:
 
@@ -281,7 +299,10 @@ Example measure profile block:
       "level": 9
     },
     "force": false,
-    "autoOutput": false
+    "autoOutput": false,
+    "blockSize": 2048,
+    "threads": 8,
+    "zopfli": false
   }
 }
 ```
@@ -295,6 +316,8 @@ Manual PowerShell use usually works best with the default text output.
 `SHA256SUMS.txt` is included for release file verification.
 
 Use it to check that the downloaded files were not changed or corrupted after release.
+
+`THIRD_PARTY_NOTICES.md` documents bundled third-party source code and licenses, including Zopfli under Apache License 2.0.
 
 ## Exit codes
 

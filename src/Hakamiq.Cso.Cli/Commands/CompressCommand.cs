@@ -76,10 +76,11 @@ public static class CompressCommand
         CsoMeasureResult result = estimator.Measure(
             new CsoMeasureOptions(
                 options.InputPath,
-                CsoCompressor.DefaultBlockSize,
+                options.BlockSize,
                 cancellationToken,
                 progress,
-                options.Profile));
+                options.Profile,
+                options.UseZopfli));
 
         progress?.FinishLine();
 
@@ -88,7 +89,10 @@ public static class CompressCommand
             JsonConsole.Write(CsoCompressJsonContract.Measure(
                 SafeFullPath(options.InputPath),
                 profileSettings,
-                result));
+                result,
+                options.BlockSize,
+                options.WorkerCount,
+                options.UseZopfli));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -114,6 +118,7 @@ public static class CompressCommand
                 Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
                 PrintProfileSummary(profileSettings);
+                PrintCompressionOptions(options);
             }
 
             return CliExitCodes.Success;
@@ -122,6 +127,7 @@ public static class CompressCommand
         Console.Error.WriteLine("Status: FAILED");
         Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
         PrintProfileSummary(profileSettings, Console.Error);
+        PrintCompressionOptions(options, Console.Error);
 
         return ToExitCode(result.ErrorCode);
     }
@@ -157,10 +163,12 @@ public static class CompressCommand
                 options.InputPath,
                 outputPath,
                 options.Force && !autoOutput,
-                CsoCompressor.DefaultBlockSize,
+                options.BlockSize,
                 cancellationToken,
                 progress,
-                options.Profile));
+                options.Profile,
+                options.WorkerCount,
+                options.UseZopfli));
 
         progress?.FinishLine();
 
@@ -172,7 +180,10 @@ public static class CompressCommand
                 options.Force && !autoOutput,
                 autoOutput,
                 profileSettings,
-                result));
+                result,
+                options.BlockSize,
+                options.WorkerCount,
+                options.UseZopfli));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -189,6 +200,7 @@ public static class CompressCommand
                 Console.WriteLine($"Compressed blocks: {result.CompressedBlocks:N0}");
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
                 PrintProfileSummary(profileSettings);
+                PrintCompressionOptions(options);
             }
 
             return CliExitCodes.Success;
@@ -197,6 +209,7 @@ public static class CompressCommand
         Console.Error.WriteLine("Status: FAILED");
         Console.Error.WriteLine($"{result.ErrorCode}: {result.ErrorMessage}");
         PrintProfileSummary(profileSettings, Console.Error);
+        PrintCompressionOptions(options, Console.Error);
 
         return ToExitCode(result.ErrorCode);
     }
@@ -223,6 +236,9 @@ public static class CompressCommand
         bool measure = false;
         bool fastAlias = false;
         bool profileExplicit = false;
+        uint blockSize = CsoCompressor.DefaultBlockSize;
+        int workerCount = Math.Max(1, Environment.ProcessorCount);
+        bool useZopfli = false;
         CsoCompressionProfile profile = CsoCompressionProfilePolicy.DefaultProfile;
 
         for (int index = 1; index < args.Length; index++)
@@ -230,7 +246,8 @@ public static class CompressCommand
             string arg = args[index];
 
             if (string.Equals(arg, "-o", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(arg, "--output", StringComparison.OrdinalIgnoreCase))
+                string.Equals(arg, "--output", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(arg, "--output-path", StringComparison.OrdinalIgnoreCase))
             {
                 if (outputPath is not null)
                 {
@@ -246,6 +263,48 @@ public static class CompressCommand
 
                 outputPath = args[index + 1];
                 index++;
+                continue;
+            }
+
+            if (TryConsumeOptionValue(args, ref index, "--threads", out string? threadsValue, out errorMessage))
+            {
+                if (errorMessage is not null)
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(threadsValue, out int parsedWorkerCount) ||
+                    parsedWorkerCount <= 0)
+                {
+                    errorMessage = "--threads must be a positive integer.";
+                    return false;
+                }
+
+                workerCount = parsedWorkerCount;
+                continue;
+            }
+
+            if (TryConsumeOptionValue(args, ref index, "--block", out string? blockValue, out errorMessage))
+            {
+                if (errorMessage is not null)
+                {
+                    return false;
+                }
+
+                if (!TryParseBlockSize(blockValue, out uint parsedBlockSize))
+                {
+                    errorMessage = "--block must be a positive byte size, optionally using K or M suffixes.";
+                    return false;
+                }
+
+                blockSize = parsedBlockSize;
+                continue;
+            }
+
+            if (string.Equals(arg, "--zopfli", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(arg, "--use-zopfli", StringComparison.OrdinalIgnoreCase))
+            {
+                useZopfli = true;
                 continue;
             }
 
@@ -343,8 +402,88 @@ public static class CompressCommand
             quiet,
             json,
             measure,
-            profile);
+            profile,
+            blockSize,
+            workerCount,
+            useZopfli);
 
+        return true;
+    }
+
+    private static bool TryConsumeOptionValue(
+        string[] args,
+        ref int index,
+        string optionName,
+        out string? value,
+        out string? errorMessage)
+    {
+        value = null;
+        errorMessage = null;
+
+        string arg = args[index];
+
+        if (string.Equals(arg, optionName, StringComparison.OrdinalIgnoreCase))
+        {
+            if (index + 1 >= args.Length)
+            {
+                errorMessage = $"Missing value after {optionName}.";
+                return true;
+            }
+
+            value = args[index + 1];
+            index++;
+            return true;
+        }
+
+        string prefix = optionName + "=";
+
+        if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            value = arg[prefix.Length..];
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                errorMessage = $"Missing value after {optionName}.";
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseBlockSize(string? value, out uint blockSize)
+    {
+        blockSize = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        string text = value.Trim();
+        ulong multiplier = 1;
+
+        char suffix = text[^1];
+        if (suffix is 'k' or 'K')
+        {
+            multiplier = 1024;
+            text = text[..^1];
+        }
+        else if (suffix is 'm' or 'M')
+        {
+            multiplier = 1024UL * 1024UL;
+            text = text[..^1];
+        }
+
+        if (!ulong.TryParse(text, out ulong parsed) ||
+            parsed == 0 ||
+            parsed > uint.MaxValue / multiplier)
+        {
+            return false;
+        }
+
+        blockSize = checked((uint)(parsed * multiplier));
         return true;
     }
 
@@ -365,7 +504,7 @@ public static class CompressCommand
             "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" or "InvalidInputSize" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "CompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InputAccessDenied" or "MeasureIoFailed" => CliExitCodes.CannotWriteOutput,
-            "InvalidBlockSize" or "BlockSizeTooLarge" => CliExitCodes.InvalidCsoHeader,
+            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" => CliExitCodes.InvalidCsoHeader,
             _ => CliExitCodes.CompressionFailed
         };
     }
@@ -401,6 +540,20 @@ public static class CompressCommand
         writer.WriteLine($"Level: {profileSettings.Level}");
     }
 
+    private static void PrintCompressionOptions(CompressCommandOptions options)
+    {
+        PrintCompressionOptions(options, Console.Out);
+    }
+
+    private static void PrintCompressionOptions(
+        CompressCommandOptions options,
+        TextWriter writer)
+    {
+        writer.WriteLine($"Block size: {options.BlockSize:N0}");
+        writer.WriteLine($"Threads: {options.WorkerCount:N0}");
+        writer.WriteLine($"Zopfli: {options.UseZopfli.ToString().ToLowerInvariant()}");
+    }
+
     private static void PrintUsage(string? errorMessage = null)
     {
         if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -408,8 +561,8 @@ public static class CompressCommand
             Console.Error.WriteLine(errorMessage);
         }
 
-        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--force] [--quiet] [--json]");
-        Console.Error.WriteLine($"       hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--quiet] [--json]");
+        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--force] [--quiet] [--json]");
+        Console.Error.WriteLine($"       hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--block <bytes>] [--zopfli] [--quiet] [--json]");
     }
 
     private sealed record CompressCommandOptions(
@@ -419,7 +572,10 @@ public static class CompressCommand
         bool Quiet,
         bool Json,
         bool Measure,
-        CsoCompressionProfile Profile);
+        CsoCompressionProfile Profile,
+        uint BlockSize,
+        int WorkerCount,
+        bool UseZopfli);
 
     private sealed class ConsoleCompressProgress : IProgress<CsoCompressProgress>
     {

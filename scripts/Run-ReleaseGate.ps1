@@ -137,6 +137,9 @@ function Test-HelpSmoke {
         "hakamiq-cso compress <input.iso>",
         "--profile <compat|fast|smallest>",
         "[--fast]",
+        "--threads <n>",
+        "--block <bytes>",
+        "--zopfli",
         "native-info"
     )) {
         if ($text -notmatch [regex]::Escape($required)) {
@@ -303,3 +306,5 @@ Write-Host ""
 Write-Host "Release gate result"
 Write-Host "-------------------"
 Write-Host "Status: PASS"
+
+$global:LASTEXITCODE = 0
