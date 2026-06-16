@@ -107,6 +107,48 @@ function Assert-NoTrackedArtifacts {
     }
 }
 
+function Assert-FinalNativeBackend {
+    param(
+        [string]$PublishDir,
+        [string]$ExpectedVersion
+    )
+
+    $exePath = Join-Path $PublishDir "hakamiq-cso.exe"
+    $nativeDllPath = Join-Path $PublishDir "Hakamiq.Cso.Native.dll"
+
+    if (-not (Test-Path $exePath)) {
+        throw "Published executable was not found for native backend check: $exePath"
+    }
+
+    if (-not (Test-Path $nativeDllPath)) {
+        throw "Native DLL was not found in final publish directory: $nativeDllPath"
+    }
+
+    $nativeInfoOutput = ((& $exePath native-info) | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host $nativeInfoOutput
+        throw "Final native-info check failed with exit code $LASTEXITCODE."
+    }
+
+    if ($nativeInfoOutput -notmatch "Backend:\s+native") {
+        Write-Host $nativeInfoOutput
+        throw "Final publish did not report native backend."
+    }
+
+    if ($nativeInfoOutput -notmatch "Native available:\s+True") {
+        Write-Host $nativeInfoOutput
+        throw "Final publish did not report native availability."
+    }
+
+    $expectedNativeVersion = [regex]::Escape("Native version: $ExpectedVersion ABI 1")
+    if ($nativeInfoOutput -notmatch $expectedNativeVersion) {
+        Write-Host $nativeInfoOutput
+        throw "Final native version mismatch. Expected: Native version: $ExpectedVersion ABI 1"
+    }
+
+    Write-Host $nativeInfoOutput
+}
+
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ReleaseGateScript = Join-Path $PSScriptRoot "Run-ReleaseGate.ps1"
 $PublishedSmokeScript = Join-Path $PSScriptRoot "Run-PublishedExeSmoke.ps1"
@@ -115,6 +157,7 @@ $VerifyReleaseScript = Join-Path $PSScriptRoot "Verify-Release.ps1"
 $PublishSourceScript = Join-Path $PSScriptRoot "Publish-SourcePackage.ps1"
 $CliProject = Join-Path $RepoRoot "src\Hakamiq.Cso.Cli\Hakamiq.Cso.Cli.csproj"
 $CoreProject = Join-Path $RepoRoot "src\Hakamiq.Cso.Core\Hakamiq.Cso.Core.csproj"
+$PublishDir = Join-Path (Join-Path $RepoRoot "artifacts\publish") $Runtime
 $ReleaseZip = Join-Path (Join-Path $RepoRoot "artifacts\release") "hakamiq-csokit-$Version-$Runtime.zip"
 $SourceZip = Join-Path (Join-Path $RepoRoot "artifacts\source") "hakamiq-csokit-$Version-source.zip"
 
@@ -202,6 +245,10 @@ if (-not $SkipReleasePackage) {
             Version = $Version
             Runtime = $Runtime
         }
+
+    Invoke-Step "final native backend check" {
+        Assert-FinalNativeBackend -PublishDir $PublishDir -ExpectedVersion $Version
+    }
 
     Invoke-PowerShellScriptStep `
         -Name "publish source package" `

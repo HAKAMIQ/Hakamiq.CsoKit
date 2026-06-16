@@ -1,13 +1,20 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace Hakamiq.Cso.Core.Native;
 
 public static class NativeCsoRuntime
 {
+    public const string DisableNativeEnvironmentVariable = "HAKAMIQ_CSO_DISABLE_NATIVE";
+
     private const string LibraryName = "Hakamiq.Cso.Native";
 
     public static NativeCsoRuntimeInfo GetInfo()
     {
+        if (IsDisabledByEnvironment())
+        {
+            return CreateManagedFallback($"Native backend disabled by {DisableNativeEnvironmentVariable}.");
+        }
+
         try
         {
             int probe = NativeMethods.hakamiq_cso_native_probe();
@@ -44,6 +51,15 @@ public static class NativeCsoRuntime
         {
             return CreateManagedFallback(ex.Message);
         }
+    }
+
+    public static bool IsDisabledByEnvironment()
+    {
+        string? value = Environment.GetEnvironmentVariable(DisableNativeEnvironmentVariable);
+
+        return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
     }
 
     private static NativeCsoRuntimeInfo CreateManagedFallback(string reason)
