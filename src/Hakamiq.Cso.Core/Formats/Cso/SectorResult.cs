@@ -8,7 +8,12 @@ public sealed record SectorResult(
     bool IsStored,
     CompressionMethod Method,
     int Level,
-    byte[] Buffer)
+    byte[] Buffer,
+    string CodecName = "")
 {
     public ReadOnlySpan<byte> OutputSpan => Buffer.AsSpan(0, OutputLength);
+
+    public string EffectiveCodecName => string.IsNullOrWhiteSpace(CodecName)
+        ? Method.ToString().ToLowerInvariant()
+        : CodecName;
 }

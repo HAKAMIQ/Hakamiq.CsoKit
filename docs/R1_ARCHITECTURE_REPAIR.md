@@ -1,6 +1,6 @@
 # R1 Architecture Repair: Native Backend Policy
 
-> Historical note: this document records the R1 decision before the threaded/Zopfli compression phase. Current builds include a bounded threaded compression pipeline and an explicit optional native Zopfli candidate path.
+> Historical note: this document records the R1 decision before the threaded/native codec phase. Current builds include a bounded threaded compression pipeline, native zlib/libdeflate raw-Deflate candidates, and an explicit optional native Zopfli candidate path.
 
 R1 resolves the native-backend work as an architecture boundary, not a compression-speed feature.
 

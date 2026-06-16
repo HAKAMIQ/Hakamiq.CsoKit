@@ -2,18 +2,22 @@
 
 Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
 
-It can inspect CSO files, verify their structure, decompress CSO files back to ISO, and compress ISO files to CSO.
+It can detect disc image containers, analyze PSP ISO structure, inspect CSO files, deep-verify CSO blocks, safely repair readable ISO/CSO1/ZSO/DAX/CSO2 input into game-safe CSO1, decompress CSO files back to ISO, and compress ISO files to CSO.
 
 ## Current support
 
 * CSO decompression
 * ISO to CSO compression
-* CSO info and verification
+* CSO info, shallow verification, and deep block verification
+* PSP ISO structure analysis without modifying game files
+* Safe repair/normalize for readable ISO, CSO1, ZSO, DAX, and supported CSO2 input
+* Format detection for ISO, CSO1, CSO2, ZSO, DAX, and unknown input
 * ISO compression measurement without writing an output file
 * Same-folder default output naming without creating output folders
-* Compression profiles: `compat`, `fast`, and `smallest`
-* Multi-candidate Deflate selection for the `smallest` profile
+* Compression profiles: `game-safe`, `compat`, `fast`, `smallest`, and `archive-smallest`
+* Multi-candidate raw Deflate trial engine with in-memory roundtrip verification
 * Configurable compression threads and CSO block size
+* Native zlib and libdeflate raw-Deflate candidates when the native DLL is available
 * Optional native Zopfli Deflate trials with `--zopfli`
 * Progress output
 * Safe Ctrl+C cancellation
@@ -71,7 +75,23 @@ Verify a CSO file:
 
 ```powershell
 .\hakamiq-cso.exe verify ".\game.cso"
+.\hakamiq-cso.exe verify ".\game.cso" --deep --sha256
 ```
+
+Detect and analyze input before compression:
+
+```powershell
+.\hakamiq-cso.exe detect ".\game.iso" --json
+.\hakamiq-cso.exe analyze ".\game.iso" --psp --json
+```
+
+Safely rebuild readable ISO/CSO1/ZSO/DAX/CSO2 input as game-safe CSO1:
+
+```powershell
+.\hakamiq-cso.exe repair ".\game.cso" -o ".\fixed.cso" --profile game-safe --deep-verify
+```
+
+ZSO, DAX, and CSO2 are supported as input decode/normalize containers only in this stage. Hakamiq CsoKit still writes CSO1 by default and does not make ZSO, DAX, or CSO2 an output format.
 
 Compress ISO to CSO in the same folder:
 
@@ -82,14 +102,15 @@ Compress ISO to CSO in the same folder:
 Choose a compression profile:
 
 ```powershell
+.\hakamiq-cso.exe compress ".\game.iso" --profile game-safe
 .\hakamiq-cso.exe compress ".\game.iso" --profile compat
 .\hakamiq-cso.exe compress ".\game.iso" --profile fast
 .\hakamiq-cso.exe compress ".\game.iso" --profile smallest
 ```
 
-`smallest` is the default safe profile and tries multiple managed Deflate candidates per block before choosing the smallest valid CSO sector. `compat` keeps a conservative compatibility-focused Deflate path. `fast` favors faster compression and may produce a larger file. The short alias `--fast` is equivalent to `--profile fast`.
+`game-safe` is the default profile. It writes CSO1, keeps the default block size at 2048 bytes, uses raw Deflate candidates only, and enables deep verification after compression. With the native DLL present, `game-safe` can try managed Deflate, native zlib strategies, and native libdeflate before selecting the smallest block that roundtrips in memory. `smallest` tries more candidates but does not enable Zopfli unless `--zopfli` is explicit. `archive-smallest` is for archival experiments and may reduce compatibility if paired with larger block sizes. The short alias `--fast` is equivalent to `--profile fast`.
 
-Do not combine `--fast` with `--profile compat` or `--profile smallest`. Use `--profile fast`, use `--fast`, or remove the conflicting option.
+Do not combine `--fast` with another explicit profile. Use `--profile fast`, use `--fast`, or remove the conflicting option.
 
 Tune compression when needed:
 
@@ -97,12 +118,17 @@ Tune compression when needed:
 .\hakamiq-cso.exe compress ".\game.iso" --threads 8
 .\hakamiq-cso.exe compress ".\game.iso" --block 16K
 .\hakamiq-cso.exe compress ".\game.iso" --zopfli
+.\hakamiq-cso.exe compress ".\game.iso" --codec-report
 .\hakamiq-cso.exe compress ".\game.iso" --threads=8 --block=16K --zopfli
 ```
 
-`--threads` controls compression workers. `--block` accepts byte values and `K` or `M` suffixes, must be at least `2048`, and must be a power of two. Larger blocks can improve compression but may reduce compatibility with older readers.
+`--threads` controls compression workers. `--block` accepts byte values and `K` or `M` suffixes, must be at least `2048`, and must be a power of two. Larger blocks can improve compression but may reduce compatibility or increase random-read latency. The default remains 2048 for PSP/PPSSPP safety.
 
-`--zopfli` enables slower native Zopfli raw-Deflate trials for maximum size reduction. It requires `Hakamiq.Cso.Native.dll` beside the executable.
+`--zopfli` enables slower native Zopfli raw-Deflate trials for maximum size reduction. It requires `Hakamiq.Cso.Native.dll` beside the executable and is never enabled by default.
+
+`--codec-report` prints how many blocks were won by each codec candidate. JSON compression output always includes the same `metrics.codecWins` object.
+
+Safe repair does not invent missing data. If a compressed block is corrupt or the source is incomplete, the command fails with a diagnosis such as `ReDumpRequired` and does not write a partial output file. Padding a non-2048-aligned ISO is only done when `--repair pad-last-sector` is explicit.
 
 If `.\game.cso` already exists, Hakamiq CsoKit writes `.\game - Hakamiq Converted.cso` instead. If that also exists, it writes `.\game - Hakamiq Converted 2.cso`, then keeps counting upward.
 
@@ -182,10 +208,10 @@ Use the profile matrix before changing profile behavior. It runs a real ISO -> C
 .\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso"
 ```
 
-By default, the matrix checks `smallest`, `compat`, and `fast`. To check specific profiles:
+By default, the matrix checks `game-safe`, `compat`, `fast`, and `smallest`, with deep verification before decompression. To check specific profiles:
 
 ```powershell
-.\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso" -Profiles smallest,fast
+.\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso" -Profiles game-safe,smallest,fast
 ```
 
 Successful artifacts are removed by default. To keep the generated CSO and restored ISO files for inspection:
@@ -232,7 +258,7 @@ For a quick publish-only smoke that skips real ISO conversion checks:
 .\scripts\Run-PublishedExeSmoke.ps1 -SkipRealIsoGates
 ```
 
-The full smoke runs help, version, native-info, JSON argument checks, measure checks, verify checks, and real ISO -> CSO -> ISO SHA256 checks for `smallest`, `compat`, and `fast` using the published executable. Generated smoke artifacts are removed after success unless `-KeepArtifacts` is supplied.
+The full smoke runs help, version, native-info, JSON argument checks, measure checks, deep verify checks, and real ISO -> CSO -> ISO SHA256 checks for `game-safe`, `compat`, `fast`, and `smallest` using the published executable. Generated smoke artifacts are removed after success unless `-KeepArtifacts` is supplied.
 
 ## Developer final release gate
 
@@ -270,7 +296,13 @@ Check it with:
 .\hakamiq-cso.exe native-info
 ```
 
-If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE. The `--zopfli` option requires this native backend.
+If the native backend is unavailable, make sure the DLL is still in the same folder as the EXE. Native zlib and libdeflate are used only as safe raw-Deflate candidates, and the managed Deflate fallback remains available. The `--zopfli` option requires this native backend and remains opt-in.
+
+List codec availability with:
+
+```powershell
+.\hakamiq-cso.exe codecs
+```
 
 ## JSON output
 
@@ -278,6 +310,7 @@ Add `--json` when another program or script needs structured output:
 
 ```powershell
 .\hakamiq-cso.exe verify ".\game.cso" --json
+.\hakamiq-cso.exe verify ".\game.cso" --deep --sha256 --json
 .\hakamiq-cso.exe compress ".\game.iso" --measure --profile smallest --json
 .\hakamiq-cso.exe compress ".\game.iso" --profile fast --json
 ```
@@ -302,12 +335,13 @@ Example measure profile block:
     "autoOutput": false,
     "blockSize": 2048,
     "threads": 8,
-    "zopfli": false
+    "zopfli": false,
+    "deepVerify": false
   }
 }
 ```
 
-Invalid profile values return a clear argument error. Supported profiles are `compat`, `fast`, and `smallest`. Conflicting profile options return the same argument error contract in JSON mode and a concise message in text mode.
+Invalid profile values return a clear argument error. Supported profiles are `game-safe`, `compat`, `fast`, `smallest`, and `archive-smallest`. Conflicting profile options return the same argument error contract in JSON mode and a concise message in text mode.
 
 Manual PowerShell use usually works best with the default text output.
 
@@ -317,7 +351,7 @@ Manual PowerShell use usually works best with the default text output.
 
 Use it to check that the downloaded files were not changed or corrupted after release.
 
-`THIRD_PARTY_NOTICES.md` documents bundled third-party source code and licenses, including Zopfli under Apache License 2.0.
+`THIRD_PARTY_NOTICES.md` documents third-party native compression components and licenses, including Zopfli, zlib, and libdeflate.
 
 ## Exit codes
 

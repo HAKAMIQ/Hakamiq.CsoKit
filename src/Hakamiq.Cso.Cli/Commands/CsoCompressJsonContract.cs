@@ -12,7 +12,8 @@ public static class CsoCompressJsonContract
         CsoMeasureResult result,
         uint blockSize = CsoCompressor.DefaultBlockSize,
         int workerCount = 1,
-        bool useZopfli = false)
+        bool useZopfli = false,
+        bool deepVerify = false)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -29,7 +30,8 @@ public static class CsoCompressJsonContract
                 false,
                 blockSize,
                 workerCount,
-                useZopfli),
+                useZopfli,
+                deepVerify),
             new CsoMeasureJsonMetrics(
                 result.OriginalBytes,
                 result.EstimatedBytes,
@@ -51,7 +53,8 @@ public static class CsoCompressJsonContract
         CsoCompressResult result,
         uint blockSize = CsoCompressor.DefaultBlockSize,
         int workerCount = 1,
-        bool useZopfli = false)
+        bool useZopfli = false,
+        bool deepVerify = false)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -69,12 +72,14 @@ public static class CsoCompressJsonContract
                 autoOutput,
                 blockSize,
                 workerCount,
-                useZopfli),
+                useZopfli,
+                deepVerify),
             new CsoWriteJsonMetrics(
                 result.BytesRead,
                 result.BytesWritten,
                 result.CompressedBlocks,
-                result.StoredBlocks),
+                result.StoredBlocks,
+                result.EffectiveCodecWins),
             result.Success ? null : Error(result.ErrorCode, result.ErrorMessage));
     }
 
@@ -102,7 +107,8 @@ public sealed record CsoCompressJsonOptions(
     bool AutoOutput,
     uint BlockSize,
     int Threads,
-    bool Zopfli);
+    bool Zopfli,
+    bool DeepVerify);
 
 public sealed record CsoMeasureJsonMetrics(
     ulong OriginalBytes,
@@ -118,7 +124,8 @@ public sealed record CsoWriteJsonMetrics(
     ulong BytesRead,
     ulong BytesWritten,
     int CompressedBlocks,
-    int StoredBlocks);
+    int StoredBlocks,
+    IReadOnlyDictionary<string, int> CodecWins);
 
 public sealed record CsoMeasureJsonOutput(
     int SchemaVersion,

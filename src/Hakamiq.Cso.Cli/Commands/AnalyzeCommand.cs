@@ -1,0 +1,151 @@
+using Hakamiq.Cso.Core.Formats.Iso;
+
+namespace Hakamiq.Cso.Cli.Commands;
+
+public static class AnalyzeCommand
+{
+    public static int Run(string[] args)
+    {
+        if (!TryParseArgs(args, out AnalyzeCommandOptions options))
+        {
+            PrintUsage();
+            return CliExitCodes.InvalidArguments;
+        }
+
+        PspIsoValidationResult result = new PspIsoValidator().Validate(
+            options.InputPath,
+            options.AllowPadding);
+
+        if (options.Json)
+        {
+            JsonConsole.Write(new
+            {
+                command = "analyze",
+                success = result.Success,
+                input = SafeFullPath(options.InputPath),
+                psp = new
+                {
+                    inputBytes = result.InputBytes,
+                    paddingBytes = result.PaddingBytes,
+                    hasIso9660PrimaryVolumeDescriptor = result.HasIso9660PrimaryVolumeDescriptor,
+                    hasUmdDataBin = result.HasUmdDataBin,
+                    hasParamSfo = result.HasParamSfo,
+                    hasEbootBin = result.HasEbootBin
+                },
+                warnings = result.Warnings,
+                issues = result.Issues.Select(issue => new
+                {
+                    code = issue.Code,
+                    message = issue.Message,
+                    path = issue.Path
+                }).ToArray()
+            });
+
+            return result.Success ? CliExitCodes.Success : ToExitCode(result.Issues.FirstOrDefault()?.Code);
+        }
+
+        Console.WriteLine("PSP ISO Analysis");
+        Console.WriteLine("----------------");
+        Console.WriteLine($"Input: {SafeFullPath(options.InputPath)}");
+
+        if (result.Success)
+        {
+            Console.WriteLine("Status: OK");
+            Console.WriteLine($"Input bytes: {result.InputBytes:N0}");
+
+            foreach (string warning in result.Warnings)
+            {
+                Console.WriteLine($"Warning: {warning}");
+            }
+
+            return CliExitCodes.Success;
+        }
+
+        Console.Error.WriteLine("Status: FAILED");
+
+        foreach (PspIsoValidationIssue issue in result.Issues)
+        {
+            Console.Error.WriteLine($"{issue.Code}: {issue.Message}");
+        }
+
+        return ToExitCode(result.Issues.FirstOrDefault()?.Code);
+    }
+
+    private static bool TryParseArgs(string[] args, out AnalyzeCommandOptions options)
+    {
+        options = default!;
+
+        if (args.Length < 1)
+        {
+            return false;
+        }
+
+        string inputPath = args[0];
+        bool json = false;
+        bool allowPadding = false;
+
+        for (int index = 1; index < args.Length; index++)
+        {
+            string arg = args[index];
+
+            if (string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                json = true;
+                continue;
+            }
+
+            if (string.Equals(arg, "--psp", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.Equals(arg, "--allow-padding", StringComparison.OrdinalIgnoreCase))
+            {
+                allowPadding = true;
+                continue;
+            }
+
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(inputPath))
+        {
+            return false;
+        }
+
+        options = new AnalyzeCommandOptions(inputPath, json, allowPadding);
+        return true;
+    }
+
+    private static int ToExitCode(string? errorCode)
+    {
+        return errorCode switch
+        {
+            "InputNotFound" => CliExitCodes.InputNotFound,
+            "IsoNotSectorAligned" or "InvalidIsoSize" => CliExitCodes.InvalidCsoHeader,
+            _ => CliExitCodes.GeneralFailure,
+        };
+    }
+
+    private static string SafeFullPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    private static void PrintUsage()
+    {
+        Console.Error.WriteLine("Usage: hakamiq-cso analyze <input.iso> [--psp] [--allow-padding] [--json]");
+    }
+
+    private sealed record AnalyzeCommandOptions(
+        string InputPath,
+        bool Json,
+        bool AllowPadding);
+}

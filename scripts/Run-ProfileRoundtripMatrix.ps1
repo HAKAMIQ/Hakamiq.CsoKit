@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$InputIso,
 
-    [string[]]$Profiles = @("smallest", "compat", "fast"),
+    [string[]]$Profiles = @("game-safe", "compat", "fast", "smallest"),
 
     [switch]$KeepArtifacts,
 
@@ -103,7 +103,7 @@ function Get-NormalizedProfiles {
         throw "At least one profile must be specified."
     }
 
-    $supported = @("smallest", "compat", "fast")
+    $supported = @("game-safe", "compat", "fast", "smallest", "archive-smallest")
     $normalized = New-Object System.Collections.Generic.List[string]
 
     foreach ($profile in $ProfileNames) {
@@ -114,7 +114,7 @@ function Get-NormalizedProfiles {
         $name = $profile.Trim().ToLowerInvariant()
 
         if (-not ($supported -contains $name)) {
-            throw "Unsupported profile '$profile'. Supported profiles: smallest, compat, fast."
+            throw "Unsupported profile '$profile'. Supported profiles: game-safe, compat, fast, smallest, archive-smallest."
         }
 
         if (-not $normalized.Contains($name)) {
@@ -168,11 +168,13 @@ try {
         Write-Host "CSO output: $CsoArtifactPath"
         Write-Host "ISO output: $RestoredIsoPath"
 
-        $compressArgs = @("compress", $InputIsoPath, "-o", $CsoArtifactPath, "--profile", $profile)
+        $compressArgs = @("compress", $InputIsoPath, "-o", $CsoArtifactPath, "--profile", $profile, "--deep-verify")
+        $verifyArgs = @("verify", $CsoArtifactPath, "--deep", "--sha256")
         $decompressArgs = @("decompress", $CsoArtifactPath, "-o", $RestoredIsoPath)
 
         if ($Quiet) {
             $compressArgs += "--quiet"
+            $verifyArgs += "--json"
             $decompressArgs += "--quiet"
         }
 
@@ -181,6 +183,8 @@ try {
         if (-not (Test-Path -LiteralPath $CsoArtifactPath)) {
             throw "Compression completed but CSO artifact was not found: $CsoArtifactPath"
         }
+
+        Invoke-HakamiqCso -StepName "Deep verify CSO ($profile)" -CommandArguments $verifyArgs
 
         Invoke-HakamiqCso -StepName "Decompress CSO to ISO ($profile)" -CommandArguments $decompressArgs
 

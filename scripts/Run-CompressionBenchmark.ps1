@@ -7,7 +7,10 @@ param(
     [string]$OutputDir,
     [string]$MaxCsoExe,
     [string]$MaxCsoArguments = "--format=cso1 --quiet `"{input}`" -o `"{output}`"",
+    [string]$CisoExe,
+    [string]$CisoArguments = "9 `"{input}`" `"{output}`"",
     [switch]$IncludeManagedComparison,
+    [switch]$SkipZopfli,
     [switch]$KeepArtifacts
 )
 
@@ -49,7 +52,9 @@ function Invoke-HakamiqBenchmarkProfile {
         [string]$ToolName,
         [string]$RuntimeBackend,
         [string]$Profile,
+        [string]$ResultProfile,
         [bool]$DisableNative,
+        [string[]]$ExtraCompressArgs = @(),
         [string]$ExePath,
         [System.IO.FileInfo]$IsoItem,
         [string]$IsoHash,
@@ -59,9 +64,10 @@ function Invoke-HakamiqBenchmarkProfile {
         [System.Collections.Generic.List[object]]$Rows
     )
 
+    $rowProfile = if ([string]::IsNullOrWhiteSpace($ResultProfile)) { $Profile } else { $ResultProfile }
     $suffix = if ($DisableNative) { "managed-runtime" } else { "native-runtime" }
-    $csoPath = Join-Path $WorkDir "$SafeBaseName-$ToolName-$Profile-$suffix.cso"
-    $restoredPath = Join-Path $WorkDir "$SafeBaseName-$ToolName-$Profile-$suffix-restored.iso"
+    $csoPath = Join-Path $WorkDir "$SafeBaseName-$ToolName-$rowProfile-$suffix.cso"
+    $restoredPath = Join-Path $WorkDir "$SafeBaseName-$ToolName-$rowProfile-$suffix-restored.iso"
     $oldDisableNative = [Environment]::GetEnvironmentVariable("HAKAMIQ_CSO_DISABLE_NATIVE")
 
     try {
@@ -72,15 +78,15 @@ function Invoke-HakamiqBenchmarkProfile {
             Remove-Item Env:\HAKAMIQ_CSO_DISABLE_NATIVE -ErrorAction SilentlyContinue
         }
 
-        $compressSeconds = Invoke-External "$ToolName compress $Profile" {
-            & $ExePath compress $IsoItem.FullName -o $csoPath --profile $Profile --force --quiet
+        $compressSeconds = Invoke-External "$ToolName compress $rowProfile" {
+            & $ExePath compress $IsoItem.FullName -o $csoPath --profile $Profile --force --quiet @ExtraCompressArgs
         }
 
-        $verifySeconds = Invoke-External "$ToolName verify $Profile" {
-            & $ExePath verify $csoPath
+        $verifySeconds = Invoke-External "$ToolName deep verify $rowProfile" {
+            & $ExePath verify $csoPath --deep --sha256
         }
 
-        $decompressSeconds = Invoke-External "$ToolName decompress $Profile" {
+        $decompressSeconds = Invoke-External "$ToolName decompress $rowProfile" {
             & $ExePath decompress $csoPath -o $restoredPath --force --quiet
         }
     }
@@ -100,7 +106,7 @@ function Invoke-HakamiqBenchmarkProfile {
     $Rows.Add([pscustomobject]@{
         Tool = $ToolName
         Backend = $RuntimeBackend
-        Profile = $Profile
+        Profile = $rowProfile
         Input = $IsoItem.FullName
         InputBytes = $IsoItem.Length
         CsoBytes = $csoBytes
@@ -188,7 +194,7 @@ New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
 try {
     $rows = New-Object System.Collections.Generic.List[object]
-    $profiles = @("smallest", "compat", "fast")
+    $profiles = @("game-safe", "fast", "smallest")
 
     foreach ($iso in $InputIso) {
         if (-not (Test-Path -LiteralPath $iso)) {
@@ -208,7 +214,26 @@ try {
                 -ToolName "hakamiq" `
                 -RuntimeBackend "native-runtime" `
                 -Profile $profile `
+                -ResultProfile $profile `
                 -DisableNative $false `
+                -ExtraCompressArgs @() `
+                -ExePath $ExePath `
+                -IsoItem $isoItem `
+                -IsoHash $isoHash `
+                -WorkDir $WorkDir `
+                -SafeBaseName $safeBaseName `
+                -KeepArtifacts $KeepArtifacts.IsPresent `
+                -Rows $rows
+        }
+
+        if (-not $SkipZopfli) {
+            Invoke-HakamiqBenchmarkProfile `
+                -ToolName "hakamiq" `
+                -RuntimeBackend "native-runtime" `
+                -Profile "smallest" `
+                -ResultProfile "smallest-zopfli" `
+                -DisableNative $false `
+                -ExtraCompressArgs @("--zopfli") `
                 -ExePath $ExePath `
                 -IsoItem $isoItem `
                 -IsoHash $isoHash `
@@ -223,7 +248,9 @@ try {
                 -ToolName "hakamiq-managed" `
                 -RuntimeBackend "managed-runtime" `
                 -Profile "fast" `
+                -ResultProfile "fast" `
                 -DisableNative $true `
+                -ExtraCompressArgs @() `
                 -ExePath $ExePath `
                 -IsoItem $isoItem `
                 -IsoHash $isoHash `
@@ -250,8 +277,8 @@ try {
                 throw "maxcso did not produce the expected output: $maxOutput"
             }
 
-            $maxVerifySeconds = Invoke-External "maxcso output verify" {
-                & $ExePath verify $maxOutput
+            $maxVerifySeconds = Invoke-External "maxcso output deep verify" {
+                & $ExePath verify $maxOutput --deep --sha256
             }
 
             $maxRestored = Join-Path $WorkDir "$safeBaseName-maxcso-restored.iso"
@@ -279,6 +306,55 @@ try {
 
             if (-not $KeepArtifacts) {
                 Remove-Item -LiteralPath $maxOutput, $maxRestored -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($CisoExe)) {
+            if (-not (Test-Path -LiteralPath $CisoExe)) {
+                throw "ciso executable was not found: $CisoExe"
+            }
+
+            $cisoOutput = Join-Path $WorkDir "$safeBaseName-ciso-level9.cso"
+            $expandedArgs = $CisoArguments.Replace("{input}", $isoItem.FullName).Replace("{output}", $cisoOutput)
+
+            $cisoSeconds = Invoke-External "ciso level 9 compress" {
+                $command = "& `"$CisoExe`" $expandedArgs"
+                Invoke-Expression $command
+            }
+
+            if (-not (Test-Path -LiteralPath $cisoOutput)) {
+                throw "ciso did not produce the expected output: $cisoOutput"
+            }
+
+            $cisoVerifySeconds = Invoke-External "ciso output deep verify" {
+                & $ExePath verify $cisoOutput --deep --sha256
+            }
+
+            $cisoRestored = Join-Path $WorkDir "$safeBaseName-ciso-level9-restored.iso"
+            $cisoDecompressSeconds = Invoke-External "ciso output decompress" {
+                & $ExePath decompress $cisoOutput -o $cisoRestored --force --quiet
+            }
+
+            $cisoRestoredHash = Get-HashText -Path $cisoRestored
+            $cisoStatus = if ($cisoRestoredHash -eq $isoHash) { "PASS" } else { "FAIL" }
+            $cisoBytes = (Get-Item -LiteralPath $cisoOutput).Length
+
+            $rows.Add([pscustomobject]@{
+                Tool = "ciso"
+                Backend = "external"
+                Profile = "level-9"
+                Input = $isoItem.FullName
+                InputBytes = $isoItem.Length
+                CsoBytes = $cisoBytes
+                Ratio = [math]::Round(($cisoBytes / [double]$isoItem.Length), 6)
+                CompressSeconds = $cisoSeconds
+                VerifySeconds = $cisoVerifySeconds
+                DecompressSeconds = $cisoDecompressSeconds
+                Roundtrip = $cisoStatus
+            })
+
+            if (-not $KeepArtifacts) {
+                Remove-Item -LiteralPath $cisoOutput, $cisoRestored -Force -ErrorAction SilentlyContinue
             }
         }
     }
@@ -320,7 +396,7 @@ try {
         $lines.Add('```')
     }
     $lines.Add("")
-    $lines.Add("Note: native-runtime means the final executable can load the native backend. Native compression is used only for explicit options such as --zopfli.")
+    $lines.Add("Note: native-runtime means the final executable can load the native backend. zlib and libdeflate can participate as safe raw-Deflate candidates; Zopfli remains explicit via --zopfli.")
     $lines.Add("")
     $lines.Add("| Tool | Backend | Profile | InputBytes | CsoBytes | Ratio | CompressSeconds | VerifySeconds | DecompressSeconds | Roundtrip |")
     $lines.Add("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")

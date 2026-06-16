@@ -173,6 +173,55 @@ public sealed class CsoCliContractTests
         Assert.True(options.GetProperty("zopfli").GetBoolean());
     }
 
+
+    [Theory]
+    [InlineData("codecs")]
+    [InlineData("native-info")]
+    public void CodecCapabilityCommands_DistinguishManagedLz4FromNativeCapabilities(string command)
+    {
+        CapturedRun run = Capture(() => CsoCommandDispatcher.Run([command]));
+
+        Assert.Equal(CliExitCodes.Success, run.ExitCode);
+        Assert.Contains("Managed LZ4 decode: available", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains("Native LZ4 decode: unavailable", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains("LZ4 encode: unavailable", run.StdOut, StringComparison.Ordinal);
+        Assert.DoesNotContain("  LZ4 decode: available", run.StdOut, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void VerifyDeep_WithCso2Json_UsesContainerVerifier()
+    {
+        byte[] original = Enumerable.Range(0, 4096)
+            .Select(index => (byte)(index % 251))
+            .ToArray();
+        string path = CsoTestFileFactory.CreateTempCso2(original);
+
+        try
+        {
+            CapturedRun run = Capture(() => CsoCommandDispatcher.Run([
+                "verify",
+                path,
+                "--deep",
+                "--sha256",
+                "--json"]));
+
+            Assert.Equal(CliExitCodes.Success, run.ExitCode);
+            Assert.Empty(run.StdErr);
+
+            using JsonDocument document = JsonDocument.Parse(run.StdOut);
+            JsonElement root = document.RootElement;
+
+            Assert.True(root.GetProperty("success").GetBoolean());
+            Assert.Equal("Cso2", root.GetProperty("format").GetString());
+            Assert.Equal((ulong)original.Length, root.GetProperty("deep").GetProperty("bytesReconstructed").GetUInt64());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static CapturedRun Capture(Func<int> run)
     {
         TextWriter originalOut = Console.Out;

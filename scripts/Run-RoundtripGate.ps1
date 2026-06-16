@@ -112,6 +112,7 @@ $CsoArtifactPath = New-UniqueSiblingPath -DirectoryPath $DirectoryPath -BaseName
 $RestoredIsoPath = New-UniqueSiblingPath -DirectoryPath $DirectoryPath -BaseName $BaseName -Suffix " - Hakamiq Roundtrip Restored" -Extension ".iso"
 
 $compressArgs = @("compress", $InputIsoPath, "-o", $CsoArtifactPath)
+$verifyArgs = @("verify", $CsoArtifactPath, "--deep", "--sha256")
 $decompressArgs = @("decompress", $CsoArtifactPath, "-o", $RestoredIsoPath)
 
 if ($Quiet) {
@@ -135,6 +136,8 @@ try {
     if (-not (Test-Path -LiteralPath $CsoArtifactPath)) {
         throw "Compression completed but CSO artifact was not found: $CsoArtifactPath"
     }
+
+    Invoke-HakamiqCso -StepName "Deep verify CSO" -CommandArguments $verifyArgs
 
     Invoke-HakamiqCso -StepName "Decompress CSO to ISO" -CommandArguments $decompressArgs
 

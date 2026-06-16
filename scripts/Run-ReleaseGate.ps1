@@ -110,7 +110,7 @@ function Test-ForbiddenTerms {
         throw "Forbidden-term scan did not find any files to scan."
     }
 
-    $pattern = "CSO v1|CSO v2|ZSO|DAX|LZ4|--format"
+    $pattern = "CSO v1|CSO v2|--format"
     $matches = Select-String -LiteralPath $scanPaths.ToArray() -Pattern $pattern -ErrorAction SilentlyContinue
 
     if ($matches) {
@@ -133,13 +133,18 @@ function Test-HelpSmoke {
     foreach ($required in @(
         "hakamiq-cso info <input.cso>",
         "hakamiq-cso verify <input.cso>",
+        "hakamiq-cso repair <input.iso|input.cso>",
+        "hakamiq-cso analyze <input.iso>",
+        "hakamiq-cso detect <input>",
         "hakamiq-cso decompress <input.cso>",
         "hakamiq-cso compress <input.iso>",
-        "--profile <compat|fast|smallest>",
+        "--profile <game-safe|compat|fast|smallest|archive-smallest>",
         "[--fast]",
         "--threads <n>",
         "--block <bytes>",
         "--zopfli",
+        "--codec-report",
+        "codecs",
         "native-info"
     )) {
         if ($text -notmatch [regex]::Escape($required)) {
@@ -173,7 +178,7 @@ function Test-JsonArgumentSmoke {
         throw "Invalid profile JSON smoke returned unexpected error code: $($json.error.code)"
     }
 
-    if ($json.error.message -notmatch "Supported profiles: compat\|fast\|smallest") {
+    if ($json.error.message -notmatch "Supported profiles: game-safe\|compat\|fast\|smallest\|archive-smallest") {
         throw "Invalid profile JSON smoke returned an unexpected message: $($json.error.message)"
     }
 }
@@ -201,6 +206,7 @@ $SolutionPath = Join-Path $RepoRoot "Hakamiq.CsoKit.slnx"
 $CliProject = Join-Path $RepoRoot "src\Hakamiq.Cso.Cli\Hakamiq.Cso.Cli.csproj"
 $RoundtripGateScript = Join-Path $RepoRoot "scripts\Run-RoundtripGate.ps1"
 $ProfileMatrixScript = Join-Path $RepoRoot "scripts\Run-ProfileRoundtripMatrix.ps1"
+$NativeBuildScript = Join-Path $RepoRoot "scripts\Build-Native.ps1"
 
 if (-not (Test-Path -LiteralPath $SolutionPath)) {
     throw "Solution file was not found: $SolutionPath"
@@ -228,6 +234,13 @@ Invoke-GateStep -Name "dotnet restore" -Action {
         $SolutionPath,
         "-p:NuGetAudit=false"
     )
+}
+
+Invoke-GateStep -Name "native codec build" -Action {
+    Invoke-ScriptFile -ScriptPath $NativeBuildScript -NamedArguments @{
+        Configuration = "Release"
+        Platform = "x64"
+    } -StepName "native codec build"
 }
 
 Invoke-GateStep -Name "dotnet build" -Action {

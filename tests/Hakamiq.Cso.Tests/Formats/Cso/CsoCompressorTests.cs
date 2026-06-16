@@ -63,6 +63,11 @@ public sealed class CsoCompressorTests
             Assert.True(result.Success, result.ErrorMessage);
             Assert.True(result.CompressedBlocks > 0);
             Assert.True(result.BytesWritten < result.BytesRead);
+            Assert.Equal(result.CompressedBlocks + result.StoredBlocks, result.EffectiveCodecWins.Values.Sum());
+            Assert.Contains(
+                result.EffectiveCodecWins,
+                item => item.Key.StartsWith("managed-deflate", StringComparison.Ordinal) ||
+                    item.Key.StartsWith("native-", StringComparison.Ordinal));
         }
         finally
         {

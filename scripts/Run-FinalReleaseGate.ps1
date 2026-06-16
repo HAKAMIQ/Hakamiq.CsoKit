@@ -140,10 +140,22 @@ function Assert-FinalNativeBackend {
         throw "Final publish did not report native availability."
     }
 
-    $expectedNativeVersion = [regex]::Escape("Native version: $ExpectedVersion ABI 1")
+    foreach ($requiredCapability in @(
+        "Native zlib:\s+available",
+        "Native libdeflate:\s+available",
+        "Native Zopfli:\s+available",
+        "LZ4 decode:\s+available"
+    )) {
+        if ($nativeInfoOutput -notmatch $requiredCapability) {
+            Write-Host $nativeInfoOutput
+            throw "Final publish did not report required codec capability: $requiredCapability"
+        }
+    }
+
+    $expectedNativeVersion = [regex]::Escape("Native version: $ExpectedVersion ABI 2")
     if ($nativeInfoOutput -notmatch $expectedNativeVersion) {
         Write-Host $nativeInfoOutput
-        throw "Final native version mismatch. Expected: Native version: $ExpectedVersion ABI 1"
+        throw "Final native version mismatch. Expected: Native version: $ExpectedVersion ABI 2"
     }
 
     Write-Host $nativeInfoOutput

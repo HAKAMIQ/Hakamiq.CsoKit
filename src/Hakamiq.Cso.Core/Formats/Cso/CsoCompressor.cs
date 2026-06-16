@@ -91,6 +91,14 @@ public sealed class CsoCompressor
             ulong indexBytes = checked((ulong)(totalBlocks + 1) * sizeof(uint));
             ulong headerAndIndexBytes = checked((ulong)CsoConstants.MinimumHeaderSize + indexBytes);
             ulong requiredBytes = AddSafetyBuffer(checked(inputBytes + headerAndIndexBytes));
+            byte indexShift = CsoIndexShiftPolicy.ComputeShift(checked(inputBytes + headerAndIndexBytes));
+
+            if (indexShift > 0)
+            {
+                return CsoCompressResult.Fail(
+                    "IndexShiftRequired",
+                    "This ISO can require shifted CSO indexes. The game-safe CSO1 writer currently keeps index shift at 0; use a smaller input or wait for explicit large-compatible output.");
+            }
 
             CsoDiskSpacePreflightResult diskSpace = diskSpacePreflight.CheckOutputSpace(options.OutputPath, requiredBytes);
 
@@ -130,6 +138,7 @@ public sealed class CsoCompressor
                         inputBytes,
                         blockSize,
                         totalBlocks,
+                        indexShift,
                         options.Profile,
                         options.WorkerCount,
                         options.UseZopfli,
@@ -140,6 +149,23 @@ public sealed class CsoCompressor
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (options.DeepVerifyOutput)
+                {
+                    CsoDeepVerifyResult deepVerify = new CsoDeepVerifier().Verify(
+                        tempOutputPath,
+                        computeSha256: false);
+
+                    if (!deepVerify.Success)
+                    {
+                        CsoDeepVerifyIssue? issue = deepVerify.Issues.FirstOrDefault();
+                        SafeDelete(tempOutputPath);
+
+                        return CsoCompressResult.Fail(
+                            issue?.Code ?? "CsoDeepVerifyFailed",
+                            issue?.Message ?? "CSO deep verification failed.");
+                    }
+                }
 
                 File.Move(tempOutputPath, fullOutputPath, overwrite: options.ForceOverwrite);
 
@@ -178,6 +204,7 @@ public sealed class CsoCompressor
         ulong inputBytes,
         int blockSize,
         int totalBlocks,
+        byte indexShift,
         CsoCompressionProfile profile,
         int workerCount,
         bool useZopfli,
@@ -194,6 +221,7 @@ public sealed class CsoCompressor
                 inputBytes,
                 blockSize,
                 totalBlocks,
+                indexShift,
                 profile,
                 useZopfli,
                 cancellationToken,
@@ -206,6 +234,7 @@ public sealed class CsoCompressor
             inputBytes,
             blockSize,
             totalBlocks,
+            indexShift,
             profile,
             effectiveWorkerCount,
             useZopfli,
@@ -219,6 +248,7 @@ public sealed class CsoCompressor
         ulong inputBytes,
         int blockSize,
         int totalBlocks,
+        byte indexShift,
         CsoCompressionProfile profile,
         bool useZopfli,
         CancellationToken cancellationToken,
@@ -226,7 +256,7 @@ public sealed class CsoCompressor
     {
         ulong dataStart = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalBlocks + 1) * sizeof(uint)));
 
-        CsoIndexBuilder indexBuilder = new(totalBlocks);
+        CsoIndexBuilder indexBuilder = new(totalBlocks, indexShift);
         CsoOrderedOutputWriter outputWriter = new(output);
         CsoCompressionWorker compressionWorker = new(profile, useZopfli);
         byte[] inputBuffer = new byte[blockSize];
@@ -236,6 +266,7 @@ public sealed class CsoCompressor
         ulong totalRead = 0;
         int compressedBlocks = 0;
         int storedBlocks = 0;
+        Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
 
         ReportProgress(progress, completedBlocks: 0, totalBlocks, totalRead, inputBytes);
 
@@ -272,6 +303,8 @@ public sealed class CsoCompressor
                 compressedBlocks++;
             }
 
+            IncrementCodecWin(codecWins, sectorResult);
+
             totalRead += (ulong)read;
 
             int completedBlocks = blockIndex + 1;
@@ -291,6 +324,7 @@ public sealed class CsoCompressor
             output,
             inputBytes,
             (uint)blockSize,
+            indexShift,
             indexBuilder.Entries);
 
         ReportProgress(progress, totalBlocks, totalBlocks, totalRead, inputBytes);
@@ -299,7 +333,8 @@ public sealed class CsoCompressor
             totalRead,
             bytesWritten,
             compressedBlocks,
-            storedBlocks);
+            storedBlocks,
+            codecWins);
     }
 
     private static CsoCompressResult CompressBlocksParallel(
@@ -308,6 +343,7 @@ public sealed class CsoCompressor
         ulong inputBytes,
         int blockSize,
         int totalBlocks,
+        byte indexShift,
         CsoCompressionProfile profile,
         int workerCount,
         bool useZopfli,
@@ -316,7 +352,7 @@ public sealed class CsoCompressor
     {
         ulong dataStart = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalBlocks + 1) * sizeof(uint)));
 
-        CsoIndexBuilder indexBuilder = new(totalBlocks);
+        CsoIndexBuilder indexBuilder = new(totalBlocks, indexShift);
         CsoOrderedOutputWriter outputWriter = new(output);
         outputWriter.ReserveDataStart(dataStart);
 
@@ -446,6 +482,7 @@ public sealed class CsoCompressor
         ulong totalWrittenSourceBytes = 0;
         int compressedBlocks = 0;
         int storedBlocks = 0;
+        Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
 
         try
         {
@@ -500,6 +537,8 @@ public sealed class CsoCompressor
                     compressedBlocks++;
                 }
 
+                IncrementCodecWin(codecWins, nextResult);
+
                 totalWrittenSourceBytes += (ulong)nextResult.SourceLength;
                 nextBlockToWrite++;
 
@@ -522,6 +561,7 @@ public sealed class CsoCompressor
                 output,
                 inputBytes,
                 (uint)blockSize,
+                indexShift,
                 indexBuilder.Entries);
 
             ReportProgress(progress, totalBlocks, totalBlocks, totalWrittenSourceBytes, inputBytes);
@@ -530,7 +570,8 @@ public sealed class CsoCompressor
                 totalWrittenSourceBytes,
                 bytesWritten,
                 compressedBlocks,
-                storedBlocks);
+                storedBlocks,
+                codecWins);
         }
         finally
         {
@@ -560,6 +601,7 @@ public sealed class CsoCompressor
         FileStream output,
         ulong uncompressedSize,
         uint blockSize,
+        byte indexShift,
         IReadOnlyList<uint> indexEntries)
     {
         Span<byte> header = stackalloc byte[CsoConstants.MinimumHeaderSize];
@@ -574,7 +616,7 @@ public sealed class CsoCompressor
         BinaryPrimitives.WriteUInt32LittleEndian(header.Slice(16, 4), blockSize);
 
         header[20] = 1;
-        header[21] = 0;
+        header[21] = indexShift;
         header[22] = 0;
         header[23] = 0;
 
@@ -598,6 +640,21 @@ public sealed class CsoCompressor
         }
 
         return requiredBytes + OutputSafetyBufferBytes;
+    }
+
+    private static void IncrementCodecWin(
+        Dictionary<string, int> codecWins,
+        SectorResult result)
+    {
+        string codecName = result.EffectiveCodecName;
+
+        if (codecWins.TryGetValue(codecName, out int current))
+        {
+            codecWins[codecName] = checked(current + 1);
+            return;
+        }
+
+        codecWins.Add(codecName, 1);
     }
 
     private static bool IsPowerOfTwo(uint value)

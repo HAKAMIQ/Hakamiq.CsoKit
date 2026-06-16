@@ -4,30 +4,47 @@ namespace Hakamiq.Cso.Tests.Native;
 
 public sealed class NativeCsoRuntimeTests
 {
-    [Theory]
-    [InlineData("1")]
-    [InlineData("true")]
-    [InlineData("TRUE")]
-    [InlineData("yes")]
-    [InlineData("YES")]
-    public void GetInfo_WhenNativeDisabledByEnvironment_ReturnsManagedFallback(string value)
+    [Fact]
+    public void NativeZlibRawDeflate_RoundtripsEachStrategy()
     {
-        string? previous = Environment.GetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable);
+        NativeCsoCapabilities capabilities = NativeCsoRuntime.GetCapabilities();
+        Assert.True(capabilities.HasZlib, "Native zlib is unavailable; build the native DLL before running codec coverage tests.");
 
-        try
+        byte[] original = CreateSampleBlock();
+
+        foreach (NativeCsoRawCodec codec in new[]
         {
-            Environment.SetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable, value);
-
-            NativeCsoRuntimeInfo info = NativeCsoRuntime.GetInfo();
-
-            Assert.False(info.IsAvailable);
-            Assert.Equal("managed", info.BackendName);
-            Assert.Null(info.NativeVersion);
-            Assert.Contains(NativeCsoRuntime.DisableNativeEnvironmentVariable, info.FailureReason);
-        }
-        finally
+            NativeCsoRawCodec.ZlibDefault,
+            NativeCsoRawCodec.ZlibFiltered,
+            NativeCsoRawCodec.ZlibHuffmanOnly,
+            NativeCsoRawCodec.ZlibRle,
+        })
         {
-            Environment.SetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable, previous);
+            Assert.True(NativeCsoRuntime.TryDeflateRaw(codec, level: 9, strategy: 0, original, out byte[] compressed));
+            Assert.True(NativeCsoRuntime.TryInflateRaw(compressed, original.Length, out byte[] restored));
+            Assert.Equal(original, restored);
         }
+    }
+
+    [Fact]
+    public void NativeLibDeflateRawDeflate_RoundtripsRequestedLevels()
+    {
+        NativeCsoCapabilities capabilities = NativeCsoRuntime.GetCapabilities();
+        Assert.True(capabilities.HasLibDeflate, "Native libdeflate is unavailable; build the native DLL before running codec coverage tests.");
+
+        byte[] original = CreateSampleBlock();
+
+        foreach (int level in new[] { 1, 6, 9, 12 })
+        {
+            Assert.True(NativeCsoRuntime.TryDeflateRaw(NativeCsoRawCodec.LibDeflate, level, strategy: 0, original, out byte[] compressed));
+            Assert.True(NativeCsoRuntime.TryInflateRaw(compressed, original.Length, out byte[] restored));
+            Assert.Equal(original, restored);
+        }
+    }
+
+    private static byte[] CreateSampleBlock()
+    {
+        byte[] block = new byte[4096];
+        return block;
     }
 }

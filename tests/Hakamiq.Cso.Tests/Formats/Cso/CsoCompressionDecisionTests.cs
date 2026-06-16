@@ -161,7 +161,7 @@ public sealed class CsoCompressionDecisionTests
 
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
-        Assert.Equal(9, result.Level);
+        Assert.NotEqual("store", result.EffectiveCodecName);
         Assert.True(result.OutputLength < source.Length);
     }
 }
@@ -183,7 +183,9 @@ public sealed class CsoCompressionProfileWorkerTests
 
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
-        Assert.Equal(1, result.Level);
+        Assert.Contains(
+            result.EffectiveCodecName,
+            new[] { "managed-deflate-fastest", "native-libdeflate-1", "native-libdeflate-6" });
     }
 
     [Fact]
@@ -201,6 +203,20 @@ public sealed class CsoCompressionProfileWorkerTests
 
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
-        Assert.Equal(9, result.Level);
+        Assert.Contains(
+            result.EffectiveCodecName,
+            new[]
+            {
+                "managed-deflate-fastest",
+                "managed-deflate-optimal",
+                "managed-deflate-smallest",
+                "native-zlib-default",
+                "native-zlib-filtered",
+                "native-zlib-huffman-only",
+                "native-zlib-rle",
+                "native-libdeflate-6",
+                "native-libdeflate-9",
+                "native-libdeflate-12",
+            });
     }
 }

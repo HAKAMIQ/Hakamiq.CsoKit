@@ -1,6 +1,24 @@
 # Third-Party Notices
 
-Hakamiq CsoKit includes third-party source code for optional native compression backends.
+Hakamiq CsoKit includes third-party source code and statically linked native compression components.
+
+## zlib
+
+- Component: zlib compression library
+- Upstream project: https://github.com/madler/zlib
+- Build intake: CMake FetchContent, tag `v1.3.2`
+- License: zlib License
+
+zlib is used for raw-Deflate candidate trials with `Z_DEFAULT_STRATEGY`, `Z_FILTERED`, `Z_HUFFMAN_ONLY`, and `Z_RLE`.
+
+## libdeflate
+
+- Component: libdeflate
+- Upstream project: https://github.com/ebiggers/libdeflate
+- Build intake: CMake FetchContent, tag `v1.25`
+- License: MIT License
+
+libdeflate is used for raw-Deflate candidate trials at levels 1, 6, 9, and 12.
 
 ## Zopfli
 

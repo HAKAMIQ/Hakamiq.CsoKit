@@ -4,20 +4,24 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public static class CsoCompressionProfilePolicy
 {
+    public const string GameSafeName = "game-safe";
     public const string CompatName = "compat";
     public const string FastName = "fast";
     public const string SmallestName = "smallest";
+    public const string ArchiveSmallestName = "archive-smallest";
 
     public static readonly string[] SupportedNames =
     [
+        GameSafeName,
         CompatName,
         FastName,
         SmallestName,
+        ArchiveSmallestName,
     ];
 
     public static string SupportedNamesText => string.Join("|", SupportedNames);
 
-    public static CsoCompressionProfile DefaultProfile => CsoCompressionProfile.Smallest;
+    public static CsoCompressionProfile DefaultProfile => CsoCompressionProfile.GameSafe;
 
     public static bool TryParse(string? value, out CsoCompressionProfile profile)
     {
@@ -30,6 +34,10 @@ public static class CsoCompressionProfilePolicy
 
         switch (value.Trim().ToLowerInvariant())
         {
+            case GameSafeName:
+                profile = CsoCompressionProfile.GameSafe;
+                return true;
+
             case CompatName:
                 profile = CsoCompressionProfile.Compat;
                 return true;
@@ -42,6 +50,10 @@ public static class CsoCompressionProfilePolicy
                 profile = CsoCompressionProfile.Smallest;
                 return true;
 
+            case ArchiveSmallestName:
+                profile = CsoCompressionProfile.ArchiveSmallest;
+                return true;
+
             default:
                 return false;
         }
@@ -51,9 +63,11 @@ public static class CsoCompressionProfilePolicy
     {
         return profile switch
         {
+            CsoCompressionProfile.GameSafe => GameSafeName,
             CsoCompressionProfile.Compat => CompatName,
             CsoCompressionProfile.Fast => FastName,
             CsoCompressionProfile.Smallest => SmallestName,
+            CsoCompressionProfile.ArchiveSmallest => ArchiveSmallestName,
             _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unsupported CSO compression profile."),
         };
     }
@@ -62,6 +76,14 @@ public static class CsoCompressionProfilePolicy
     {
         return profile switch
         {
+            CsoCompressionProfile.GameSafe => new CsoCompressionProfileSettings(
+                CsoCompressionProfile.GameSafe,
+                GameSafeName,
+                "game-safe",
+                IsFast: false,
+                Level: 9,
+                CompressionLevel: CompressionLevel.SmallestSize),
+
             CsoCompressionProfile.Compat => new CsoCompressionProfileSettings(
                 CsoCompressionProfile.Compat,
                 CompatName,
@@ -82,6 +104,14 @@ public static class CsoCompressionProfilePolicy
                 CsoCompressionProfile.Smallest,
                 SmallestName,
                 "smallest",
+                IsFast: false,
+                Level: 9,
+                CompressionLevel: CompressionLevel.SmallestSize),
+
+            CsoCompressionProfile.ArchiveSmallest => new CsoCompressionProfileSettings(
+                CsoCompressionProfile.ArchiveSmallest,
+                ArchiveSmallestName,
+                "archive-smallest",
                 IsFast: false,
                 Level: 9,
                 CompressionLevel: CompressionLevel.SmallestSize),

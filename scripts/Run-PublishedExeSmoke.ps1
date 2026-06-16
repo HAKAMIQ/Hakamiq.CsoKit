@@ -138,13 +138,18 @@ function Test-HelpSmoke {
     foreach ($required in @(
         "hakamiq-cso info <input.cso>",
         "hakamiq-cso verify <input.cso>",
+        "hakamiq-cso repair <input.iso|input.cso>",
+        "hakamiq-cso analyze <input.iso>",
+        "hakamiq-cso detect <input>",
         "hakamiq-cso decompress <input.cso>",
         "hakamiq-cso compress <input.iso>",
-        "--profile <compat|fast|smallest>",
+        "--profile <game-safe|compat|fast|smallest|archive-smallest>",
         "[--fast]",
         "--threads <n>",
         "--block <bytes>",
         "--zopfli",
+        "--codec-report",
+        "codecs",
         "native-info"
     )) {
         if ($text -notmatch [regex]::Escape($required)) {
@@ -164,7 +169,14 @@ function Test-VersionSmoke {
 function Test-NativeInfoSmoke {
     $text = Invoke-Exe -Arguments @( "native-info" ) -ExpectedExitCodes @(0) -StepName "published native-info smoke"
 
-    foreach ($required in @( "Backend:", "Native available:" )) {
+    foreach ($required in @(
+        "Backend:",
+        "Native available:",
+        "Native zlib: available",
+        "Native libdeflate: available",
+        "Native Zopfli: available",
+        "LZ4 decode: available"
+    )) {
         if ($text -notmatch [regex]::Escape($required)) {
             throw "Published native-info output does not contain required text: $required"
         }
@@ -193,7 +205,7 @@ function Test-JsonArgumentSmoke {
         throw "Published JSON argument smoke returned unexpected error code: $($json.error.code)"
     }
 
-    if ($json.error.message -notmatch "Supported profiles: compat\|fast\|smallest") {
+    if ($json.error.message -notmatch "Supported profiles: game-safe\|compat\|fast\|smallest\|archive-smallest") {
         throw "Published JSON argument smoke returned an unexpected message: $($json.error.message)"
     }
 }
@@ -276,6 +288,8 @@ function Test-PublishedRoundtripProfile {
     $verifyJson = Invoke-ExeJson -Arguments @(
         "verify",
         $csoPath,
+        "--deep",
+        "--sha256",
         "--json"
     ) -ExpectedExitCodes @(0) -StepName "published verify smoke ($Profile)"
 
@@ -419,7 +433,7 @@ if (-not $SkipRealIsoGates) {
         New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
         $results = @()
-        foreach ($profile in @( "smallest", "compat", "fast" )) {
+        foreach ($profile in @( "game-safe", "compat", "fast", "smallest" )) {
             $results += Test-PublishedRoundtripProfile -Profile $profile
         }
 

@@ -52,7 +52,8 @@ public sealed class CsoBestCandidateSelector
             IsStored: true,
             Method: CompressionMethod.Store,
             Level: 0,
-            Buffer: storedBuffer);
+            Buffer: storedBuffer,
+            CodecName: "store");
     }
 
     private static bool IsBetterCandidate(SectorResult candidate, SectorResult currentBest)
