@@ -161,6 +161,6 @@ dotnet test .\Hakamiq.CsoKit.slnx -c Debug --no-build
 - Reject the unproven native compression performance claim for 0.5.0 after measured native-runtime fast was slower and slightly larger than managed-runtime fast on the real PSP ISO.
 - Do not retain native block store hints or any native compression hot-path change in production.
 - Keep `HAKAMIQ_CSO_DISABLE_NATIVE` as an explicit diagnostic and benchmark fallback switch.
-- Harden `Run-CompressionBenchmark.ps1` so benchmark output is created atomically and incomplete benchmark directories are not published as valid evidence.
 - Add `docs/R1_ARCHITECTURE_REPAIR.md` and refresh the release scorecard to separate native runtime proof from compression performance claims.
+
 
