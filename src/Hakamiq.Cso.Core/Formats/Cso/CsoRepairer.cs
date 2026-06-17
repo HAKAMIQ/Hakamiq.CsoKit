@@ -235,7 +235,10 @@ public sealed class CsoRepairer
             paddingBytes,
             mode: "temp-iso-fallback",
             usedTempIso: true,
-            codecTrialSummary: compress.CodecTrialSummary);
+            codecTrialSummary: compress.CodecTrialSummary,
+            compressedBlocks: compress.CompressedBlocks,
+            storedBlocks: compress.StoredBlocks,
+            zeroBlocks: compress.ZeroBlocks);
     }
 
     private static CsoRepairResult? CheckRepairScratchSpace(

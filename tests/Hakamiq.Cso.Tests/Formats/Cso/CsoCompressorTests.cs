@@ -275,6 +275,50 @@ public sealed class CsoCompressorTests
         }
     }
 
+
+    [Fact]
+    public void Compress_WithAllZeroIso_ReportsZeroBlocksAfterFullBlockScan()
+    {
+        byte[] original = new byte[4096];
+
+        string isoPath = CreateTempPath(".iso");
+        string csoPath = CreateTempPath(".cso");
+        string outputIsoPath = CreateTempPath(".out.iso");
+
+        try
+        {
+            File.WriteAllBytes(isoPath, original);
+
+            CsoCompressor compressor = new();
+            CsoCompressResult result = compressor.Compress(
+                new CsoCompressOptions(
+                    isoPath,
+                    csoPath,
+                    ForceOverwrite: false,
+                    BlockSize: 2048,
+                    DeepVerifyOutput: true,
+                    CollectCodecReport: true,
+                    CodecReportBlockLimit: 0));
+
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal(2, result.ZeroBlocks);
+            Assert.Equal(result.CompressedBlocks + result.StoredBlocks, result.EffectiveCodecWins.Values.Sum());
+
+            CsoDecompressor decompressor = new();
+            CsoDecompressResult decompressResult = decompressor.Decompress(
+                new CsoDecompressOptions(csoPath, outputIsoPath, ForceOverwrite: false));
+
+            Assert.True(decompressResult.Success, decompressResult.ErrorMessage);
+            Assert.Equal(original, File.ReadAllBytes(outputIsoPath));
+        }
+        finally
+        {
+            File.Delete(isoPath);
+            File.Delete(csoPath);
+            File.Delete(outputIsoPath);
+        }
+    }
+
     private static string CreateTempPath(string extension)
     {
         return Path.Combine(Path.GetTempPath(), $"HakamiqCsoKit_{Guid.NewGuid():N}{extension}");

@@ -21,7 +21,7 @@ public sealed class PspIsoFixtureTests
             Assert.Equal("ULUS-12345", result.DiscIdFromUmdData);
             Assert.Equal("ULUS-12345", result.DiscIdFromParamSfo);
             Assert.Equal("Hakamiq Fixture", result.Title);
-            Assert.Empty(result.Warnings.Where(static warning => warning.Contains("mismatch", StringComparison.OrdinalIgnoreCase)));
+            Assert.DoesNotContain(result.Warnings, static warning => warning.Contains("mismatch", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {

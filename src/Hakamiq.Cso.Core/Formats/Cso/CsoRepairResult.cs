@@ -13,7 +13,10 @@ public sealed record CsoRepairResult(
     string Mode = "temp-iso-fallback",
     bool UsedTempIso = true,
     string? FallbackReason = null,
-    CodecTrialSummary? CodecTrialSummary = null)
+    CodecTrialSummary? CodecTrialSummary = null,
+    int CompressedBlocks = 0,
+    int StoredBlocks = 0,
+    int ZeroBlocks = 0)
 {
     public static CsoRepairResult Ok(
         string inputFormat,
@@ -23,7 +26,10 @@ public sealed record CsoRepairResult(
         string mode = "temp-iso-fallback",
         bool usedTempIso = true,
         string? fallbackReason = null,
-        CodecTrialSummary? codecTrialSummary = null)
+        CodecTrialSummary? codecTrialSummary = null,
+        int compressedBlocks = 0,
+        int storedBlocks = 0,
+        int zeroBlocks = 0)
     {
         return new CsoRepairResult(
             true,
@@ -36,7 +42,10 @@ public sealed record CsoRepairResult(
             mode,
             usedTempIso,
             fallbackReason,
-            codecTrialSummary);
+            codecTrialSummary,
+            compressedBlocks,
+            storedBlocks,
+            zeroBlocks);
     }
 
     public static CsoRepairResult Fail(
@@ -46,7 +55,10 @@ public sealed record CsoRepairResult(
         string mode = "temp-iso-fallback",
         bool usedTempIso = true,
         string? fallbackReason = null,
-        CodecTrialSummary? codecTrialSummary = null)
+        CodecTrialSummary? codecTrialSummary = null,
+        int compressedBlocks = 0,
+        int storedBlocks = 0,
+        int zeroBlocks = 0)
     {
         return new CsoRepairResult(
             false,
@@ -59,6 +71,9 @@ public sealed record CsoRepairResult(
             mode,
             usedTempIso,
             fallbackReason,
-            codecTrialSummary);
+            codecTrialSummary,
+            compressedBlocks,
+            storedBlocks,
+            zeroBlocks);
     }
 }

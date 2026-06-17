@@ -111,6 +111,7 @@ public static class CsoCompressJsonContract
                 result.BytesWritten,
                 result.CompressedBlocks,
                 result.StoredBlocks,
+                result.ZeroBlocks,
                 result.EffectiveCodecWins),
             codecReport ? result.CodecTrialSummary : null,
             result.Success ? null : Error(result.ErrorCode, result.ErrorMessage));
@@ -164,6 +165,7 @@ public sealed record CsoWriteJsonMetrics(
     ulong BytesWritten,
     int CompressedBlocks,
     int StoredBlocks,
+    int ZeroBlocks,
     IReadOnlyDictionary<string, int> CodecWins);
 
 public sealed record CsoMeasureJsonOutput(

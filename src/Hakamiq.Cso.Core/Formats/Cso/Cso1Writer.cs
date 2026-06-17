@@ -176,6 +176,7 @@ public sealed class Cso1Writer
         ulong outputBlockSourceOffset = 0;
         int compressedBlocks = 0;
         int storedBlocks = 0;
+        int zeroBlocks = 0;
         Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
         CodecTrialSummaryBuilder? trialSummaryBuilder = collectCodecReport
             ? new CodecTrialSummaryBuilder(codecReportBlockLimit)
@@ -226,7 +227,8 @@ public sealed class Cso1Writer
                         codecWins,
                         trialSummaryBuilder,
                         ref compressedBlocks,
-                        ref storedBlocks);
+                        ref storedBlocks,
+                        ref zeroBlocks);
 
                     outputBlockIndex++;
                     outputBlockSourceOffset = logicalBytesRead;
@@ -255,7 +257,8 @@ public sealed class Cso1Writer
                 codecWins,
                 trialSummaryBuilder,
                 ref compressedBlocks,
-                ref storedBlocks);
+                ref storedBlocks,
+                ref zeroBlocks);
 
             outputBlockIndex++;
         }
@@ -280,7 +283,8 @@ public sealed class Cso1Writer
             compressedBlocks,
             storedBlocks,
             codecWins,
-            trialSummaryBuilder?.Build(codecWins));
+            trialSummaryBuilder?.Build(codecWins),
+            zeroBlocks);
     }
 
     private static void WriteOneOutputBlock(
@@ -294,7 +298,8 @@ public sealed class Cso1Writer
         Dictionary<string, int> codecWins,
         CodecTrialSummaryBuilder? trialSummaryBuilder,
         ref int compressedBlocks,
-        ref int storedBlocks)
+        ref int storedBlocks,
+        ref int zeroBlocks)
     {
         SectorJob job = new(
             outputBlockIndex,
@@ -313,6 +318,11 @@ public sealed class Cso1Writer
         else
         {
             compressedBlocks++;
+        }
+
+        if (sectorResult.SourceIsAllZero)
+        {
+            zeroBlocks++;
         }
 
         string codecName = sectorResult.EffectiveCodecName;

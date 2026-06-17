@@ -282,6 +282,7 @@ public sealed class CsoCompressor
         ulong totalRead = 0;
         int compressedBlocks = 0;
         int storedBlocks = 0;
+        int zeroBlocks = 0;
         Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
         CodecTrialSummaryBuilder? trialSummaryBuilder = collectCodecReport
             ? new CodecTrialSummaryBuilder(codecReportBlockLimit)
@@ -322,6 +323,11 @@ public sealed class CsoCompressor
                 compressedBlocks++;
             }
 
+            if (sectorResult.SourceIsAllZero)
+            {
+                zeroBlocks++;
+            }
+
             IncrementCodecWin(codecWins, sectorResult);
             AddTrialReport(trialSummaryBuilder, sectorResult);
 
@@ -355,7 +361,8 @@ public sealed class CsoCompressor
             compressedBlocks,
             storedBlocks,
             codecWins,
-            trialSummaryBuilder?.Build(codecWins));
+            trialSummaryBuilder?.Build(codecWins),
+            zeroBlocks);
     }
 
     private static CsoCompressResult CompressBlocksParallel(
@@ -505,6 +512,7 @@ public sealed class CsoCompressor
         ulong totalWrittenSourceBytes = 0;
         int compressedBlocks = 0;
         int storedBlocks = 0;
+        int zeroBlocks = 0;
         Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
         CodecTrialSummaryBuilder? trialSummaryBuilder = collectCodecReport
             ? new CodecTrialSummaryBuilder(codecReportBlockLimit)
@@ -563,6 +571,11 @@ public sealed class CsoCompressor
                     compressedBlocks++;
                 }
 
+                if (nextResult.SourceIsAllZero)
+                {
+                    zeroBlocks++;
+                }
+
                 IncrementCodecWin(codecWins, nextResult);
                 AddTrialReport(trialSummaryBuilder, nextResult);
 
@@ -599,7 +612,8 @@ public sealed class CsoCompressor
                 compressedBlocks,
                 storedBlocks,
                 codecWins,
-                trialSummaryBuilder?.Build(codecWins));
+                trialSummaryBuilder?.Build(codecWins),
+                zeroBlocks);
         }
         finally
         {

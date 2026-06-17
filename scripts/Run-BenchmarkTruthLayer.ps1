@@ -4,7 +4,9 @@ param(
 
     [string]$Root = "",
 
-    [ValidateSet("game-safe", "compat", "fast", "smallest", "archive-smallest")]
+    # Accept either a normal PowerShell array or a comma-separated string.
+    # This is intentional because pwsh -File cannot reliably pass array values
+    # from Windows PowerShell callers.
     [string[]]$Profiles = @("game-safe"),
 
     [ValidateSet("Debug", "Release")]
@@ -24,6 +26,66 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$script:ValidBenchmarkProfiles = [string[]]@("game-safe", "compat", "fast", "smallest", "archive-smallest")
+
+function Resolve-BenchmarkProfiles {
+    param([string[]]$Values)
+
+    $resolved = New-Object System.Collections.Generic.List[string]
+
+    foreach ($value in @($Values)) {
+        if ($null -eq $value) {
+            continue
+        }
+
+        foreach ($part in ([string]$value -split ",")) {
+            $profile = $part.Trim()
+
+            if ([string]::IsNullOrWhiteSpace($profile)) {
+                continue
+            }
+
+            if ($script:ValidBenchmarkProfiles -notcontains $profile) {
+                throw "Unsupported profile '$profile'. Valid profiles: $($script:ValidBenchmarkProfiles -join ', ')."
+            }
+
+            if (-not $resolved.Contains($profile)) {
+                $resolved.Add($profile) | Out-Null
+            }
+        }
+    }
+
+    if ($resolved.Count -eq 0) {
+        $resolved.Add("game-safe") | Out-Null
+    }
+
+    return [string[]]$resolved.ToArray()
+}
+
+function Get-DefaultOutputDirectory {
+    if (-not [string]::IsNullOrWhiteSpace($Root)) {
+        $resolvedRoot = (Resolve-Path -LiteralPath $Root -ErrorAction Stop).ProviderPath
+        return Join-Path $resolvedRoot "HakamiqCsoKit_BenchmarkTruth"
+    }
+
+    foreach ($path in @($InputPath)) {
+        if ([string]::IsNullOrWhiteSpace($path)) {
+            continue
+        }
+
+        $resolvedPath = (Resolve-Path -LiteralPath $path -ErrorAction Stop).ProviderPath
+        $item = Get-Item -LiteralPath $resolvedPath -ErrorAction Stop
+
+        if ($item.PSIsContainer) {
+            return Join-Path $item.FullName "HakamiqCsoKit_BenchmarkTruth"
+        }
+
+        return Join-Path $item.Directory.FullName "HakamiqCsoKit_BenchmarkTruth"
+    }
+
+    return Join-Path ([System.IO.Path]::GetTempPath()) ("HakamiqCsoKit_BenchmarkTruth_" + [Guid]::NewGuid().ToString("N"))
+}
+
 function Write-Utf8NoBom {
     param(
         [string]$Path,
@@ -42,6 +104,115 @@ function Escape-MarkdownCell {
     }
 
     return ([string]$Value).Replace("|", "\|").Replace("`r", " ").Replace("`n", " ")
+}
+
+
+function ConvertTo-ProcessArgumentString {
+    param([string[]]$Arguments)
+
+    $quoted = New-Object System.Collections.Generic.List[string]
+
+    foreach ($argument in $Arguments) {
+        if ($null -eq $argument) {
+            $quoted.Add('""') | Out-Null
+            continue
+        }
+
+        $text = [string]$argument
+
+        if ($text.Length -eq 0) {
+            $quoted.Add('""') | Out-Null
+            continue
+        }
+
+        if ($text.IndexOfAny([char[]]@(' ', "`t", '"')) -lt 0) {
+            $quoted.Add($text) | Out-Null
+            continue
+        }
+
+        $builder = [System.Text.StringBuilder]::new()
+        [void]$builder.Append('"')
+        $slashCount = 0
+
+        foreach ($character in $text.ToCharArray()) {
+            if ($character -eq '\') {
+                $slashCount++
+                continue
+            }
+
+            if ($character -eq '"') {
+                [void]$builder.Append((('\' * (($slashCount * 2) + 1)) -join ''))
+                [void]$builder.Append('"')
+                $slashCount = 0
+                continue
+            }
+
+            if ($slashCount -gt 0) {
+                [void]$builder.Append((('\' * $slashCount) -join ''))
+                $slashCount = 0
+            }
+
+            [void]$builder.Append($character)
+        }
+
+        if ($slashCount -gt 0) {
+            [void]$builder.Append((('\' * ($slashCount * 2)) -join ''))
+        }
+
+        [void]$builder.Append('"')
+        $quoted.Add($builder.ToString()) | Out-Null
+    }
+
+    return ($quoted -join ' ')
+}
+
+function Get-JsonErrorCode {
+    param([object]$Json)
+
+    if ($null -eq $Json -or $null -eq $Json.error) {
+        return $null
+    }
+
+    return [string]$Json.error.code
+}
+
+function Get-JsonErrorMessage {
+    param([object]$Json)
+
+    if ($null -eq $Json -or $null -eq $Json.error) {
+        return $null
+    }
+
+    return [string]$Json.error.message
+}
+
+function New-BenchmarkStageFailure {
+    param(
+        [string]$Stage,
+        [string]$Code,
+        [string]$Message
+    )
+
+    return [pscustomobject]@{
+        Stage = $Stage
+        Code = $Code
+        Message = $Message
+    }
+}
+
+function Get-BenchmarkFailureText {
+    param([object[]]$Failures)
+
+    if ($null -eq $Failures -or $Failures.Count -eq 0) {
+        return ""
+    }
+
+    return (($Failures | ForEach-Object {
+        $stage = if ([string]::IsNullOrWhiteSpace([string]$_.Stage)) { "unknown" } else { [string]$_.Stage }
+        $code = if ([string]::IsNullOrWhiteSpace([string]$_.Code)) { "Failure" } else { [string]$_.Code }
+        $message = if ([string]::IsNullOrWhiteSpace([string]$_.Message)) { "Command failed." } else { [string]$_.Message }
+        "$($stage)/$($code): $message"
+    }) -join "; ")
 }
 
 function Get-ResolvedInputFiles {
@@ -117,59 +288,58 @@ function Initialize-CsoTool {
 function Invoke-ToolProcess {
     param([string[]]$Arguments)
 
-    $psi = [System.Diagnostics.ProcessStartInfo]::new()
-    $psi.FileName = $script:ToolFile
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.CreateNoWindow = $true
+    # Use PowerShell's native array invocation instead of ProcessStartInfo.
+    # This avoids host-specific failures such as ArgumentList absence on Windows
+    # PowerShell 5.1 and "Argument types do not match" binder errors on some
+    # PowerShell 7 hosts, while still preserving paths with spaces.
+    $allArgumentsList = New-Object System.Collections.Generic.List[string]
 
-    foreach ($arg in @($script:ToolPrefix + $Arguments)) {
-        $psi.ArgumentList.Add($arg)
+    foreach ($arg in @($script:ToolPrefix)) {
+        if ($null -ne $arg) {
+            $allArgumentsList.Add([string]$arg) | Out-Null
+        }
     }
 
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $psi
+    foreach ($arg in @($Arguments)) {
+        if ($null -ne $arg) {
+            $allArgumentsList.Add([string]$arg) | Out-Null
+        }
+    }
 
+    $commandArguments = [string[]]$allArgumentsList.ToArray()
     $timer = [System.Diagnostics.Stopwatch]::StartNew()
-    $process.Start() | Out-Null
-    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $stderrTask = $process.StandardError.ReadToEndAsync()
-
-    $peakWorkingSet = 0L
-
-    while (-not $process.HasExited) {
-        try {
-            $process.Refresh()
-            $peakWorkingSet = [Math]::Max($peakWorkingSet, [int64]$process.PeakWorkingSet64)
-        }
-        catch {
-        }
-
-        Start-Sleep -Milliseconds 25
-    }
-
-    $process.WaitForExit()
-    $timer.Stop()
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
 
     try {
-        $process.Refresh()
-        $peakWorkingSet = [Math]::Max($peakWorkingSet, [int64]$process.PeakWorkingSet64)
+        $rawOutput = & $script:ToolFile @commandArguments 2>&1
+        $exitCode = $LASTEXITCODE
     }
-    catch {
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+        $timer.Stop()
     }
 
-    $stdout = $stdoutTask.GetAwaiter().GetResult()
-    $stderr = $stderrTask.GetAwaiter().GetResult()
-    $exitCode = $process.ExitCode
-    $process.Dispose()
+    $outputLines = New-Object System.Collections.Generic.List[string]
+    foreach ($line in @($rawOutput)) {
+        if ($null -eq $line) {
+            continue
+        }
+
+        if ($line -is [System.Management.Automation.ErrorRecord]) {
+            $outputLines.Add([string]$line.Exception.Message) | Out-Null
+        }
+        else {
+            $outputLines.Add([string]$line) | Out-Null
+        }
+    }
 
     return [pscustomobject]@{
-        ExitCode = $exitCode
-        Stdout = $stdout
-        Stderr = $stderr
+        ExitCode = [int]$exitCode
+        Stdout = ($outputLines -join [Environment]::NewLine)
+        Stderr = ""
         ElapsedMilliseconds = [Math]::Round($timer.Elapsed.TotalMilliseconds, 3)
-        PeakWorkingSetBytes = $peakWorkingSet
+        PeakWorkingSetBytes = 0L
     }
 }
 
@@ -177,21 +347,40 @@ function Invoke-JsonTool {
     param([string[]]$Arguments)
 
     $process = Invoke-ToolProcess -Arguments $Arguments
+    $json = $null
+    $trimmedStdout = $process.Stdout.Trim()
+
+    if (-not [string]::IsNullOrWhiteSpace($trimmedStdout)) {
+        try {
+            $json = $trimmedStdout | ConvertFrom-Json
+        }
+        catch {
+            if ($process.ExitCode -eq 0) {
+                throw "hakamiq-cso did not return valid JSON for: $($Arguments -join ' ')"
+            }
+        }
+    }
 
     if ($process.ExitCode -ne 0) {
-        $message = $process.Stderr.Trim()
+        $code = Get-JsonErrorCode -Json $json
+        $message = Get-JsonErrorMessage -Json $json
 
         if ([string]::IsNullOrWhiteSpace($message)) {
-            $message = $process.Stdout.Trim()
+            $message = $process.Stderr.Trim()
         }
 
-        throw "hakamiq-cso failed with exit code $($process.ExitCode): $($Arguments -join ' ') $message"
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = $trimmedStdout
+        }
+
+        if ([string]::IsNullOrWhiteSpace($code)) {
+            $code = "ProcessExit$($process.ExitCode)"
+        }
+
+        throw "${code}: $message"
     }
 
-    try {
-        $json = $process.Stdout.Trim() | ConvertFrom-Json
-    }
-    catch {
+    if ($null -eq $json) {
         throw "hakamiq-cso did not return valid JSON for: $($Arguments -join ' ')"
     }
 
@@ -249,16 +438,21 @@ function Get-ReportMarkdown {
     [void]$builder.AppendLine("- External comparison dependency: none")
     [void]$builder.AppendLine("- Corpus stored in Git: false")
     [void]$builder.AppendLine("- Output target: CSO1 game-safe normalization/compression")
+    [void]$builder.AppendLine("- Cases passed: $($Report.casesPassed)")
+    [void]$builder.AppendLine("- Cases skipped: $($Report.casesSkipped)")
+    [void]$builder.AppendLine("- Cases failed: $($Report.casesFailed)")
     [void]$builder.AppendLine()
-    [void]$builder.AppendLine("| Input | Profile | Format | Input bytes | Logical bytes | Output bytes | Saved % | Encode ms | Decode ms | Verify ms | Peak bytes | SHA256 match | Deep verify | Selected codec | Status |")
-    [void]$builder.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    [void]$builder.AppendLine("| Input | Profile | Format | Stage | Input bytes | Logical bytes | Output bytes | Saved % | Encode ms | Decode ms | Verify ms | Peak bytes | Stored blocks | Compressed blocks | Zero blocks | SHA256 match | Deep verify | Selected codec | Status | Reason |")
+    [void]$builder.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|")
 
     foreach ($case in $Report.cases) {
-        $status = if ($case.success) { "PASS" } else { "FAIL" }
-        [void]$builder.AppendLine(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} | {13} | {14} |" -f
+        $status = if ($case.skipped) { "SKIP" } elseif ($case.success) { "PASS" } else { "FAIL" }
+        $reason = if ($case.skipped) { $case.skippedReason } else { Get-BenchmarkFailureText -Failures @($case.failures) }
+        [void]$builder.AppendLine(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} | {13} | {14} | {15} | {16} | {17} | {18} | {19} |" -f
             (Escape-MarkdownCell $case.input),
             (Escape-MarkdownCell $case.profile),
             (Escape-MarkdownCell $case.format),
+            (Escape-MarkdownCell $case.stage),
             $case.inputSizeBytes,
             $case.logicalSizeBytes,
             $case.outputSizeBytes,
@@ -267,10 +461,14 @@ function Get-ReportMarkdown {
             $case.decodeMilliseconds,
             $case.verifyMilliseconds,
             $case.peakWorkingSetBytes,
+            $case.storedBlocks,
+            $case.compressedBlocks,
+            $case.zeroBlocks,
             $case.sha256Match,
             $case.deepVerifySuccess,
             (Escape-MarkdownCell $case.selectedCodec),
-            $status))
+            $status,
+            (Escape-MarkdownCell $reason)))
     }
 
     [void]$builder.AppendLine()
@@ -279,6 +477,7 @@ function Get-ReportMarkdown {
     [void]$builder.AppendLine("- This report proves only the supplied local files and profiles.")
     [void]$builder.AppendLine("- CSO1 remains the safe output target.")
     [void]$builder.AppendLine("- Experimental or unavailable codecs are reported as candidates only when the CLI exposes them for the selected profile and flags.")
+    [void]$builder.AppendLine("- A skipped case is an unsupported benchmark path, not failed compression evidence.")
     [void]$builder.AppendLine("- A failed case is evidence to investigate; the script does not produce a trusted output for failed cases.")
 
     return $builder.ToString()
@@ -286,8 +485,10 @@ function Get-ReportMarkdown {
 
 Initialize-CsoTool
 
+$Profiles = Resolve-BenchmarkProfiles -Values $Profiles
+
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("HakamiqCsoKit_BenchmarkTruth_" + [Guid]::NewGuid().ToString("N"))
+    $OutputDirectory = Get-DefaultOutputDirectory
 }
 
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
@@ -307,13 +508,20 @@ $overallSuccess = $true
 
 foreach ($file in $files) {
     foreach ($profile in $Profiles) {
+        if (-not $Quiet) {
+            Write-Host ("[benchmark] {0} [{1}]" -f $file.Name, $profile)
+        }
+
         $caseId = [Guid]::NewGuid().ToString("N")
         $caseDir = Join-Path $artifactRoot $caseId
         New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
 
         $warnings = New-Object System.Collections.Generic.List[string]
-        $failures = New-Object System.Collections.Generic.List[string]
+        $failures = New-Object System.Collections.Generic.List[object]
         $caseSuccess = $false
+        $caseSkipped = $false
+        $skippedReason = $null
+        $stage = "detect"
         $format = $null
         $logicalSizeBytes = 0L
         $outputSizeBytes = 0L
@@ -331,8 +539,12 @@ foreach ($file in $files) {
         $selectedCodecWins = [ordered]@{}
         $rejectedReasons = [ordered]@{}
         $selectedCodec = $null
+        $compressedBlocks = 0
+        $storedBlocks = 0
+        $zeroBlocks = 0
 
         try {
+            $stage = "detect"
             $detect = Invoke-JsonTool -Arguments @("detect", $file.FullName, "--json")
             $format = [string]$detect.Json.format
 
@@ -353,6 +565,14 @@ foreach ($file in $files) {
                 $sourceSha256 = Get-Sha256Hex -Path $file.FullName
             }
             elseif ($format -in @("Cso1", "Cso2", "Zso", "Dax")) {
+                if ($profile -ne "game-safe") {
+                    $caseSkipped = $true
+                    $skippedReason = "repair supports game-safe only for CSO/ZSO/DAX/CSO2 inputs; use ISO input for profile comparison."
+                    $stage = "skipped"
+                    throw [System.OperationCanceledException]::new($skippedReason)
+                }
+
+                $stage = "input-verify"
                 $inputVerify = Invoke-JsonTool -Arguments @("verify", $file.FullName, "--deep", "--sha256", "--json")
                 $inputVerifyMilliseconds = $inputVerify.Process.ElapsedMilliseconds
                 $peakWorkingSetBytes = [Math]::Max($peakWorkingSetBytes, [int64]$inputVerify.Process.PeakWorkingSetBytes)
@@ -412,6 +632,7 @@ foreach ($file in $files) {
                 $encodeArgs += "--zopfli"
             }
 
+            $stage = if ($format -eq "RawIso") { "compress" } else { "repair" }
             $encode = Invoke-JsonTool -Arguments $encodeArgs
             $encodeMilliseconds = $encode.Process.ElapsedMilliseconds
             $peakWorkingSetBytes = [Math]::Max($peakWorkingSetBytes, [int64]$encode.Process.PeakWorkingSetBytes)
@@ -430,6 +651,20 @@ foreach ($file in $files) {
                 $savedPercent = [Math]::Round((1.0 - ([double]$outputSizeBytes / [double]$logicalSizeBytes)) * 100.0, 4)
             }
 
+            if ($null -ne $encode.Json.metrics) {
+                if ($null -ne $encode.Json.metrics.compressedBlocks) {
+                    $compressedBlocks = [int]$encode.Json.metrics.compressedBlocks
+                }
+
+                if ($null -ne $encode.Json.metrics.storedBlocks) {
+                    $storedBlocks = [int]$encode.Json.metrics.storedBlocks
+                }
+
+                if ($null -ne $encode.Json.metrics.zeroBlocks) {
+                    $zeroBlocks = [int]$encode.Json.metrics.zeroBlocks
+                }
+            }
+
             if ($null -ne $encode.Json.codecReport) {
                 $selectedCodecWins = ConvertTo-StringIntMap -Value $encode.Json.codecReport.selectedCodecWins
                 $rejectedReasons = ConvertTo-StringIntMap -Value $encode.Json.codecReport.rejectedReasons
@@ -438,6 +673,7 @@ foreach ($file in $files) {
                 $selectedCodec = Get-TopCodec -CodecWins $selectedCodecWins
             }
 
+            $stage = "output-verify"
             $verify = Invoke-JsonTool -Arguments @("verify", $outputCso, "--deep", "--sha256", "--json")
             $verifyMilliseconds = $verify.Process.ElapsedMilliseconds
             $peakWorkingSetBytes = [Math]::Max($peakWorkingSetBytes, [int64]$verify.Process.PeakWorkingSetBytes)
@@ -448,6 +684,7 @@ foreach ($file in $files) {
                 throw "Output deep verification failed."
             }
 
+            $stage = "decompress"
             $decode = Invoke-JsonTool -Arguments @("decompress", $outputCso, "-o", $restoredIso, "--force", "--json")
             $decodeMilliseconds = $decode.Process.ElapsedMilliseconds
             $peakWorkingSetBytes = [Math]::Max($peakWorkingSetBytes, [int64]$decode.Process.PeakWorkingSetBytes)
@@ -456,9 +693,11 @@ foreach ($file in $files) {
                 throw "Decode command succeeded but restored ISO was not found."
             }
 
+            $stage = "hash-compare"
             $restoredSha256 = Get-Sha256Hex -Path $restoredIso
-            $sha256Match = [string]::Equals($sourceSha256, $restoredSha256, [System.StringComparison]::OrdinalIgnoreCase) -and
-                [string]::Equals($sourceSha256, $outputSha256, [System.StringComparison]::OrdinalIgnoreCase)
+            $sha256Match = (-not [string]::IsNullOrWhiteSpace([string]$sourceSha256)) -and
+                ([string]$sourceSha256 -ieq [string]$restoredSha256) -and
+                ([string]$sourceSha256 -ieq [string]$outputSha256)
 
             if (-not $sha256Match) {
                 throw "Logical SHA256 mismatch after verify/decode."
@@ -466,36 +705,68 @@ foreach ($file in $files) {
 
             $caseSuccess = $true
         }
+        catch [System.OperationCanceledException] {
+            if (-not $caseSkipped) {
+                $overallSuccess = $false
+                $failures.Add((New-BenchmarkStageFailure -Stage $stage -Code "OperationCanceled" -Message $_.Exception.Message)) | Out-Null
+            }
+        }
         catch {
             $overallSuccess = $false
-            $failures.Add($_.Exception.Message) | Out-Null
+            $message = $_.Exception.Message
+            $code = "BenchmarkStageFailed"
+
+            if ($message -match '^([^:]+):\s*(.*)$') {
+                $code = $Matches[1]
+                $message = $Matches[2]
+            }
+
+            $failures.Add((New-BenchmarkStageFailure -Stage $stage -Code $code -Message $message)) | Out-Null
         }
 
-        $results.Add([ordered]@{
-            input = $file.FullName
-            profile = $profile
-            format = $format
+        $resultObject = [pscustomobject]@{
+            input = [string]$file.FullName
+            profile = [string]$profile
+            format = if ($null -eq $format) { $null } else { [string]$format }
+            stage = [string]$stage
+            skipped = [bool]$caseSkipped
+            skippedReason = if ($null -eq $skippedReason) { $null } else { [string]$skippedReason }
             inputSizeBytes = [int64]$file.Length
             logicalSizeBytes = [int64]$logicalSizeBytes
             outputSizeBytes = [int64]$outputSizeBytes
-            savedPercent = $savedPercent
-            encodeMilliseconds = $encodeMilliseconds
-            decodeMilliseconds = $decodeMilliseconds
-            verifyMilliseconds = $verifyMilliseconds
-            inputVerifyMilliseconds = $inputVerifyMilliseconds
+            savedPercent = [double]$savedPercent
+            encodeMilliseconds = [double]$encodeMilliseconds
+            decodeMilliseconds = [double]$decodeMilliseconds
+            verifyMilliseconds = [double]$verifyMilliseconds
+            inputVerifyMilliseconds = [double]$inputVerifyMilliseconds
             peakWorkingSetBytes = [int64]$peakWorkingSetBytes
-            codecCandidates = $codecCandidates
-            selectedCodec = $selectedCodec
+            compressedBlocks = [int]$compressedBlocks
+            storedBlocks = [int]$storedBlocks
+            zeroBlocks = [int]$zeroBlocks
+            codecCandidates = [string[]]@($codecCandidates | ForEach-Object { [string]$_ })
+            selectedCodec = if ($null -eq $selectedCodec) { $null } else { [string]$selectedCodec }
             selectedCodecWins = $selectedCodecWins
             rejectedReasons = $rejectedReasons
-            sha256Match = $sha256Match
-            deepVerifySuccess = $deepVerifySuccess
-            warnings = @($warnings)
-            failures = @($failures)
-            success = $caseSuccess
-        }) | Out-Null
+            sha256Match = [bool]$sha256Match
+            deepVerifySuccess = [bool]$deepVerifySuccess
+            warnings = [string[]]@($warnings.ToArray() | ForEach-Object { [string]$_ })
+            failures = [object[]]@($failures.ToArray())
+            success = [bool]$caseSuccess
+        }
+
+        $results.Add($resultObject) | Out-Null
+
+        if (-not $Quiet) {
+            $caseStatus = if ($caseSkipped) { "SKIP" } elseif ($caseSuccess) { "PASS" } else { "FAIL" }
+            Write-Host ("[benchmark] {0} [{1}] => {2}" -f $file.Name, $profile, $caseStatus)
+        }
     }
 }
+
+$caseArray = [object[]]@($results.ToArray())
+$passedCases = @($caseArray | Where-Object { $_.success }).Count
+$skippedCases = @($caseArray | Where-Object { $_.skipped }).Count
+$failedCases = @($caseArray | Where-Object { -not $_.success -and -not $_.skipped }).Count
 
 $artifactReportPath = $null
 
@@ -503,27 +774,30 @@ if ($KeepArtifacts) {
     $artifactReportPath = (Resolve-Path -LiteralPath $artifactRoot).ProviderPath
 }
 
-$report = [ordered]@{
+$report = [pscustomobject]@{
     schemaVersion = 1
     command = "benchmark-truth-layer"
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("O")
-    repo = $script:RepoRoot
-    configuration = $Configuration
-    profiles = [string[]]$Profiles
-    threads = $Threads
+    repo = [string]$script:RepoRoot
+    configuration = [string]$Configuration
+    profiles = [string[]]@($Profiles | ForEach-Object { [string]$_ })
+    threads = [int]$Threads
     useZopfli = [bool]$UseZopfli
     success = [bool]$overallSuccess
     skipped = [bool]($files.Count -eq 0)
     filesChecked = [int]$files.Count
-    reportDirectory = (Resolve-Path -LiteralPath $OutputDirectory).ProviderPath
-    artifacts = $artifactReportPath
-    evidence = [ordered]@{
+    casesPassed = [int]$passedCases
+    casesSkipped = [int]$skippedCases
+    casesFailed = [int]$failedCases
+    reportDirectory = [string](Resolve-Path -LiteralPath $OutputDirectory).ProviderPath
+    artifacts = if ($null -eq $artifactReportPath) { $null } else { [string]$artifactReportPath }
+    evidence = [pscustomobject]@{
         outputTarget = "CSO1"
         externalComparisonDependency = "none"
         corpusStoredInGit = $false
         failedCasesProduceTrustedOutput = $false
     }
-    cases = $results.ToArray()
+    cases = [object[]]$caseArray
 }
 
 $jsonPath = Join-Path $OutputDirectory "benchmark-truth-report.json"
@@ -540,6 +814,9 @@ if (-not $Quiet) {
     Write-Host "Benchmark truth JSON: $jsonPath"
     Write-Host "Benchmark truth Markdown: $markdownPath"
     Write-Host "Files checked: $($files.Count)"
+    Write-Host "Cases passed: $passedCases"
+    Write-Host "Cases skipped: $skippedCases"
+    Write-Host "Cases failed: $failedCases"
     Write-Host "Status: $(if ($overallSuccess) { 'PASS' } else { 'FAILED' })"
 }
 

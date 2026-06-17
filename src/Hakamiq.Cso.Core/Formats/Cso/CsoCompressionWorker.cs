@@ -58,8 +58,23 @@ public sealed class CsoCompressionWorker
 
     public SectorResult Compress(SectorJob job)
     {
-        return collectTrialReports
+        SectorResult result = collectTrialReports
             ? trialEngine.CompressWithReport(job)
             : trialEngine.Compress(job);
+
+        return result with { SourceIsAllZero = IsAllZero(job.SourceSpan) };
+    }
+
+    private static bool IsAllZero(ReadOnlySpan<byte> source)
+    {
+        foreach (byte value in source)
+        {
+            if (value != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

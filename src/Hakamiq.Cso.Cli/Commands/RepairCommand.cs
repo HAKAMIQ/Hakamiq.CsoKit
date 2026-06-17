@@ -75,7 +75,10 @@ public static class RepairCommand
                 metrics = new
                 {
                     bytesRead = result.BytesRead,
-                    bytesWritten = result.BytesWritten
+                    bytesWritten = result.BytesWritten,
+                    compressedBlocks = result.CompressedBlocks,
+                    storedBlocks = result.StoredBlocks,
+                    zeroBlocks = result.ZeroBlocks
                 },
                 codecReport = options.CodecReport ? result.CodecTrialSummary : null,
                 error = result.Success

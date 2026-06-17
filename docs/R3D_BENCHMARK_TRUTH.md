@@ -80,3 +80,7 @@ Not proven:
 Correct support statement:
 
 Hakamiq.CsoKit reads supported readable containers, rejects corruption clearly, normalizes to CSO1 game-safe output by default, verifies output when requested or required by policy, and can produce local benchmark evidence for developer-owned files.
+## R3-E clarification
+
+After R3-E, the benchmark truth layer treats container inputs and ISO inputs differently. CSO1, CSO2, ZSO, and DAX inputs prove game-safe repair/normalization only; non-game-safe profiles on those inputs are reported as skipped because `repair` supports game-safe normalization only. Use raw ISO input when the goal is profile comparison.
+

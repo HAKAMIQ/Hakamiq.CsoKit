@@ -11,7 +11,8 @@ public sealed record CsoCompressResult(
     int CompressedBlocks,
     int StoredBlocks,
     IReadOnlyDictionary<string, int>? CodecWins = null,
-    CodecTrialSummary? CodecTrialSummary = null)
+    CodecTrialSummary? CodecTrialSummary = null,
+    int ZeroBlocks = 0)
 {
     public IReadOnlyDictionary<string, int> EffectiveCodecWins => CodecWins ?? EmptyCodecWins;
 
@@ -24,7 +25,8 @@ public sealed record CsoCompressResult(
         int compressedBlocks,
         int storedBlocks,
         IReadOnlyDictionary<string, int>? codecWins = null,
-        CodecTrialSummary? codecTrialSummary = null)
+        CodecTrialSummary? codecTrialSummary = null,
+        int zeroBlocks = 0)
     {
         return new CsoCompressResult(
             true,
@@ -35,7 +37,8 @@ public sealed record CsoCompressResult(
             compressedBlocks,
             storedBlocks,
             codecWins,
-            codecTrialSummary);
+            codecTrialSummary,
+            zeroBlocks);
     }
 
     public static CsoCompressResult Fail(
@@ -46,7 +49,8 @@ public sealed record CsoCompressResult(
         int compressedBlocks = 0,
         int storedBlocks = 0,
         IReadOnlyDictionary<string, int>? codecWins = null,
-        CodecTrialSummary? codecTrialSummary = null)
+        CodecTrialSummary? codecTrialSummary = null,
+        int zeroBlocks = 0)
     {
         return new CsoCompressResult(
             false,
@@ -57,6 +61,7 @@ public sealed record CsoCompressResult(
             compressedBlocks,
             storedBlocks,
             codecWins,
-            codecTrialSummary);
+            codecTrialSummary,
+            zeroBlocks);
     }
 }

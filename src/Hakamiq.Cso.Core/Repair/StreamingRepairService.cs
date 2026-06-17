@@ -43,7 +43,10 @@ public sealed class StreamingRepairService
                 paddingBytes: 0,
                 mode: RepairMode.Streaming.ToString(),
                 usedTempIso: false,
-                codecTrialSummary: write.CodecTrialSummary);
+                codecTrialSummary: write.CodecTrialSummary,
+                compressedBlocks: write.CompressedBlocks,
+                storedBlocks: write.StoredBlocks,
+                zeroBlocks: write.ZeroBlocks);
         }
         catch (BlockContainerReadException ex)
         {
