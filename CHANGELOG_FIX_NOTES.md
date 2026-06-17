@@ -1,10 +1,10 @@
-# Hakamiq CsoKit stability fix notes
+﻿# Hakamiq CsoKit stability fix notes
 
 ## Release-readiness hardening
 
 - Add final publish native backend verification to the final release gate.
 - Make release workflow tag-only to preserve signed-tag release policy.
-- Add compression benchmark script for Hakamiq profile and maxcso comparison.
+- Add independent Hakamiq compression benchmark coverage.
 - Add 0.5.0 release scorecard with explicit blockers and required evidence.
 
 ## P2-I stable release promotion
@@ -163,3 +163,4 @@ dotnet test .\Hakamiq.CsoKit.slnx -c Debug --no-build
 - Keep `HAKAMIQ_CSO_DISABLE_NATIVE` as an explicit diagnostic and benchmark fallback switch.
 - Harden `Run-CompressionBenchmark.ps1` so benchmark output is created atomically and incomplete benchmark directories are not published as valid evidence.
 - Add `docs/R1_ARCHITECTURE_REPAIR.md` and refresh the release scorecard to separate native runtime proof from compression performance claims.
+
