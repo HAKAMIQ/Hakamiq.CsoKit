@@ -1,3 +1,5 @@
+using Hakamiq.Cso.Core.Compression.Trials;
+
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed record CsoCompressResult(
@@ -8,7 +10,8 @@ public sealed record CsoCompressResult(
     ulong BytesWritten,
     int CompressedBlocks,
     int StoredBlocks,
-    IReadOnlyDictionary<string, int>? CodecWins = null)
+    IReadOnlyDictionary<string, int>? CodecWins = null,
+    CodecTrialSummary? CodecTrialSummary = null)
 {
     public IReadOnlyDictionary<string, int> EffectiveCodecWins => CodecWins ?? EmptyCodecWins;
 
@@ -20,7 +23,8 @@ public sealed record CsoCompressResult(
         ulong bytesWritten,
         int compressedBlocks,
         int storedBlocks,
-        IReadOnlyDictionary<string, int>? codecWins = null)
+        IReadOnlyDictionary<string, int>? codecWins = null,
+        CodecTrialSummary? codecTrialSummary = null)
     {
         return new CsoCompressResult(
             true,
@@ -30,7 +34,8 @@ public sealed record CsoCompressResult(
             bytesWritten,
             compressedBlocks,
             storedBlocks,
-            codecWins);
+            codecWins,
+            codecTrialSummary);
     }
 
     public static CsoCompressResult Fail(
@@ -40,7 +45,8 @@ public sealed record CsoCompressResult(
         ulong bytesWritten = 0,
         int compressedBlocks = 0,
         int storedBlocks = 0,
-        IReadOnlyDictionary<string, int>? codecWins = null)
+        IReadOnlyDictionary<string, int>? codecWins = null,
+        CodecTrialSummary? codecTrialSummary = null)
     {
         return new CsoCompressResult(
             false,
@@ -50,6 +56,7 @@ public sealed record CsoCompressResult(
             bytesWritten,
             compressedBlocks,
             storedBlocks,
-            codecWins);
+            codecWins,
+            codecTrialSummary);
     }
 }

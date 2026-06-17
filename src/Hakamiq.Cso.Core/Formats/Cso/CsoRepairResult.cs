@@ -7,22 +7,51 @@ public sealed record CsoRepairResult(
     string InputFormat,
     ulong BytesRead,
     ulong BytesWritten,
-    long PaddingBytes)
+    long PaddingBytes,
+    string Mode = "temp-iso-fallback",
+    bool UsedTempIso = true,
+    string? FallbackReason = null)
 {
     public static CsoRepairResult Ok(
         string inputFormat,
         ulong bytesRead,
         ulong bytesWritten,
-        long paddingBytes)
+        long paddingBytes,
+        string mode = "temp-iso-fallback",
+        bool usedTempIso = true,
+        string? fallbackReason = null)
     {
-        return new CsoRepairResult(true, null, null, inputFormat, bytesRead, bytesWritten, paddingBytes);
+        return new CsoRepairResult(
+            true,
+            null,
+            null,
+            inputFormat,
+            bytesRead,
+            bytesWritten,
+            paddingBytes,
+            mode,
+            usedTempIso,
+            fallbackReason);
     }
 
     public static CsoRepairResult Fail(
         string code,
         string message,
-        string inputFormat = "Unknown")
+        string inputFormat = "Unknown",
+        string mode = "temp-iso-fallback",
+        bool usedTempIso = true,
+        string? fallbackReason = null)
     {
-        return new CsoRepairResult(false, code, message, inputFormat, 0, 0, 0);
+        return new CsoRepairResult(
+            false,
+            code,
+            message,
+            inputFormat,
+            0,
+            0,
+            0,
+            mode,
+            usedTempIso,
+            fallbackReason);
     }
 }

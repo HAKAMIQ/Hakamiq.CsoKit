@@ -1,4 +1,4 @@
-﻿# Hakamiq CsoKit stability fix notes
+# Hakamiq CsoKit stability fix notes
 
 ## Release-readiness hardening
 

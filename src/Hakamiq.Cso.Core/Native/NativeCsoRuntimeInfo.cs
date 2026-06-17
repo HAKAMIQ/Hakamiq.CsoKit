@@ -1,4 +1,4 @@
-﻿namespace Hakamiq.Cso.Core.Native;
+namespace Hakamiq.Cso.Core.Native;
 
 public sealed record NativeCsoRuntimeInfo(
     bool IsAvailable,

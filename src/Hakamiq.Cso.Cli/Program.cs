@@ -1,3 +1,3 @@
-﻿using Hakamiq.Cso.Cli.Commands;
+using Hakamiq.Cso.Cli.Commands;
 
 return CsoCommandDispatcher.Run(args);

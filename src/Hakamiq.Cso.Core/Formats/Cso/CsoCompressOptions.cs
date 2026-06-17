@@ -10,4 +10,5 @@ public sealed record CsoCompressOptions(
     CsoCompressionProfile Profile = CsoCompressionProfile.GameSafe,
     int WorkerCount = 1,
     bool UseZopfli = false,
-    bool DeepVerifyOutput = false);
+    bool DeepVerifyOutput = false,
+    bool CollectCodecReport = false);

@@ -24,37 +24,61 @@ public static class VerifyCommand
 
         if (options.Json)
         {
+            object? header = result.Header is null
+                ? null
+                : new
+                {
+                    version = result.Header.Version,
+                    headerSize = result.Header.HeaderSize,
+                    effectiveHeaderSize = result.Header.EffectiveHeaderSize,
+                    uncompressedSize = result.Header.UncompressedSize,
+                    blockSize = result.Header.BlockSize,
+                    sectorCount = result.Header.SectorCount,
+                    indexShift = result.Header.IndexShift,
+                    indexEntryCount = result.Header.IndexEntryCount,
+                    indexTableSizeBytes = result.Header.IndexTableSizeBytes
+                };
+
+            object? index = result.Header is null
+                ? null
+                : new
+                {
+                    entriesRead = result.Entries.Count,
+                    expectedEntries = result.Header.IndexEntryCount
+                };
+
+            string? firstCode = result.Issues.FirstOrDefault()?.Code;
+            string? firstMessage = result.Issues.FirstOrDefault()?.Message;
+
             JsonConsole.Write(new
             {
+                schemaVersion = 1,
                 command = "verify",
                 success = result.Success,
                 input = SafeFullPath(options.InputPath),
-                header = result.Header is null
-                    ? null
-                    : new
+                output = (string?)null,
+                format = "Cso1",
+                warnings = Array.Empty<string>(),
+                diagnostics = new
+                {
+                    header,
+                    index,
+                    issues = result.Issues.Select(issue => new
                     {
-                        version = result.Header.Version,
-                        headerSize = result.Header.HeaderSize,
-                        effectiveHeaderSize = result.Header.EffectiveHeaderSize,
-                        uncompressedSize = result.Header.UncompressedSize,
-                        blockSize = result.Header.BlockSize,
-                        sectorCount = result.Header.SectorCount,
-                        indexShift = result.Header.IndexShift,
-                        indexEntryCount = result.Header.IndexEntryCount,
-                        indexTableSizeBytes = result.Header.IndexTableSizeBytes
-                    },
-                index = result.Header is null
-                    ? null
-                    : new
-                    {
-                        entriesRead = result.Entries.Count,
-                        expectedEntries = result.Header.IndexEntryCount
-                    },
+                        code = issue.Code,
+                        message = issue.Message
+                    }).ToArray()
+                },
+                header,
+                index,
                 issues = result.Issues.Select(issue => new
                 {
                     code = issue.Code,
                     message = issue.Message
-                }).ToArray()
+                }).ToArray(),
+                error = result.Success
+                    ? null
+                    : new CsoCommandError(firstCode ?? "VerificationFailed", firstMessage ?? "CSO verification failed.")
             });
 
             return result.Success
@@ -125,35 +149,57 @@ public static class VerifyCommand
 
         if (options.Json)
         {
+            object? header = result.Header is null
+                ? null
+                : new
+                {
+                    version = result.Header.Version,
+                    uncompressedSize = result.Header.UncompressedSize,
+                    blockSize = result.Header.BlockSize,
+                    sectorCount = result.Header.SectorCount,
+                    indexShift = result.Header.IndexShift
+                };
+
+            object deep = new
+            {
+                blocksChecked = result.BlocksChecked,
+                bytesReconstructed = result.BytesReconstructed,
+                sha256 = result.Sha256
+            };
+
+            var issues = result.Issues.Select(issue => new
+            {
+                code = issue.Code,
+                message = issue.Message,
+                blockIndex = issue.BlockIndex
+            }).ToArray();
+
+            string? firstCode = result.Issues.FirstOrDefault()?.Code;
+            string? firstMessage = result.Issues.FirstOrDefault()?.Message;
+
             JsonConsole.Write(new
             {
+                schemaVersion = 1,
                 command = "verify",
-                mode = "deep",
                 success = result.Success,
                 input = SafeFullPath(options.InputPath),
+                output = (string?)null,
                 format = detected.Success ? detected.Format.ToString() : null,
-                header = result.Header is null
-                    ? null
-                    : new
-                    {
-                        version = result.Header.Version,
-                        uncompressedSize = result.Header.UncompressedSize,
-                        blockSize = result.Header.BlockSize,
-                        sectorCount = result.Header.SectorCount,
-                        indexShift = result.Header.IndexShift
-                    },
-                deep = new
+                warnings = Array.Empty<string>(),
+                diagnostics = new
                 {
-                    blocksChecked = result.BlocksChecked,
-                    bytesReconstructed = result.BytesReconstructed,
-                    sha256 = result.Sha256
+                    mode = "deep",
+                    header,
+                    deep,
+                    issues
                 },
-                issues = result.Issues.Select(issue => new
-                {
-                    code = issue.Code,
-                    message = issue.Message,
-                    blockIndex = issue.BlockIndex
-                }).ToArray()
+                mode = "deep",
+                header,
+                deep,
+                issues,
+                error = result.Success
+                    ? null
+                    : new CsoCommandError(firstCode ?? "VerificationFailed", firstMessage ?? "Deep verification failed.")
             });
 
             return result.Success

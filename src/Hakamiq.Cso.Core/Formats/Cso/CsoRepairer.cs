@@ -1,6 +1,7 @@
 using Hakamiq.Cso.Core.Formats.Containers;
 using Hakamiq.Cso.Core.Formats.DiscImage;
 using Hakamiq.Cso.Core.Formats.Iso;
+using Hakamiq.Cso.Core.Repair;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -43,6 +44,21 @@ public sealed class CsoRepairer
     private static CsoRepairResult RepairContainer(
         CsoRepairOptions options,
         DetectedDiscFormat format)
+    {
+        CsoRepairResult streamingResult = new StreamingRepairService().RepairContainer(options, format);
+
+        if (streamingResult.Success || streamingResult.ErrorCode != "StreamingRepairUnsupported")
+        {
+            return streamingResult;
+        }
+
+        return RepairContainerViaTempIso(options, format, streamingResult.ErrorMessage ?? "Streaming repair is not supported for this input.");
+    }
+
+    private static CsoRepairResult RepairContainerViaTempIso(
+        CsoRepairOptions options,
+        DetectedDiscFormat format,
+        string fallbackReason)
     {
         string tempIso = CreateTempPath(options.OutputPath, ".repair.iso");
         string? paddedIso = null;
@@ -203,7 +219,9 @@ public sealed class CsoRepairer
             inputFormat,
             compress.BytesRead,
             compress.BytesWritten,
-            paddingBytes);
+            paddingBytes,
+            mode: "temp-iso-fallback",
+            usedTempIso: true);
     }
 
     private static CsoRepairResult? CheckRepairScratchSpace(

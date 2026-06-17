@@ -84,6 +84,15 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  codecs       Show codec matrix and native availability.");
         Console.WriteLine("  native-info  Show native backend availability.");
         Console.WriteLine();
+        Console.WriteLine("Examples:");
+        Console.WriteLine("  hakamiq-cso detect game.iso");
+        Console.WriteLine("  hakamiq-cso analyze game.iso --psp");
+        Console.WriteLine("  hakamiq-cso compress game.iso --profile game-safe --deep-verify");
+        Console.WriteLine("  hakamiq-cso verify game.cso --deep --sha256");
+        Console.WriteLine("  hakamiq-cso repair old.zso -o fixed.cso --deep-verify");
+        Console.WriteLine("  hakamiq-cso codecs");
+        Console.WriteLine("  hakamiq-cso native-info");
+        Console.WriteLine();
         Console.WriteLine("Options:");
         Console.WriteLine("  --help       Show help.");
         Console.WriteLine("  --version    Show version.");

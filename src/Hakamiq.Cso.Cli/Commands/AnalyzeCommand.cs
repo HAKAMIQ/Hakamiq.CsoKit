@@ -20,25 +20,43 @@ public static class AnalyzeCommand
         {
             JsonConsole.Write(new
             {
+                schemaVersion = 1,
                 command = "analyze",
                 success = result.Success,
                 input = SafeFullPath(options.InputPath),
-                psp = new
+                output = (string?)null,
+                format = "RawIso",
+                warnings = result.Warnings,
+                diagnostics = new
                 {
                     inputBytes = result.InputBytes,
                     paddingBytes = result.PaddingBytes,
-                    hasIso9660PrimaryVolumeDescriptor = result.HasIso9660PrimaryVolumeDescriptor,
-                    hasUmdDataBin = result.HasUmdDataBin,
-                    hasParamSfo = result.HasParamSfo,
-                    hasEbootBin = result.HasEbootBin
+                    hasIso9660PrimaryVolumeDescriptor = result.HasIso9660PrimaryVolumeDescriptor
                 },
-                warnings = result.Warnings,
+                psp = new
+                {
+                    hasPspGame = result.HasPspGame,
+                    hasUmdData = result.HasUmdDataBin,
+                    hasParamSfo = result.HasParamSfo,
+                    hasEbootBin = result.HasEbootBin,
+                    discIdFromUmdData = result.DiscIdFromUmdData,
+                    discIdFromParamSfo = result.DiscIdFromParamSfo,
+                    title = result.Title,
+                    category = result.Category,
+                    pspSystemVersion = result.PspSystemVersion,
+                    warnings = result.Warnings
+                },
                 issues = result.Issues.Select(issue => new
                 {
                     code = issue.Code,
                     message = issue.Message,
                     path = issue.Path
-                }).ToArray()
+                }).ToArray(),
+                error = result.Success
+                    ? null
+                    : new CsoCommandError(
+                        result.Issues.FirstOrDefault()?.Code ?? "VerificationFailed",
+                        result.Issues.FirstOrDefault()?.Message ?? "PSP ISO analysis failed.")
             });
 
             return result.Success ? CliExitCodes.Success : ToExitCode(result.Issues.FirstOrDefault()?.Code);
@@ -52,6 +70,16 @@ public static class AnalyzeCommand
         {
             Console.WriteLine("Status: OK");
             Console.WriteLine($"Input bytes: {result.InputBytes:N0}");
+
+            if (!string.IsNullOrWhiteSpace(result.DiscIdFromUmdData))
+            {
+                Console.WriteLine($"DISC_ID: {result.DiscIdFromUmdData}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(result.Title))
+            {
+                Console.WriteLine($"Title: {result.Title}");
+            }
 
             foreach (string warning in result.Warnings)
             {

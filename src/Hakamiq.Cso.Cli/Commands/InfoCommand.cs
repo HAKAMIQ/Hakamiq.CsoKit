@@ -21,14 +21,15 @@ public static class InfoCommand
             {
                 JsonConsole.Write(new
                 {
+                    schemaVersion = 1,
                     command = "info",
                     success = false,
                     input = SafeFullPath(options.InputPath),
-                    error = new
-                    {
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage
-                    }
+                    output = (string?)null,
+                    format = (string?)null,
+                    warnings = Array.Empty<string>(),
+                    diagnostics = new { },
+                    error = new CsoCommandError(result.ErrorCode ?? "CorruptHeader", result.ErrorMessage ?? "CSO header could not be read.")
                 });
             }
             else
@@ -49,9 +50,28 @@ public static class InfoCommand
         {
             JsonConsole.Write(new
             {
+                schemaVersion = 1,
                 command = "info",
                 success = true,
                 input = SafeFullPath(options.InputPath),
+                output = (string?)null,
+                format = "Cso1",
+                warnings = Array.Empty<string>(),
+                diagnostics = new
+                {
+                    header = new
+                {
+                    version = header.Version,
+                    headerSize = header.HeaderSize,
+                    effectiveHeaderSize = header.EffectiveHeaderSize,
+                    uncompressedSize = header.UncompressedSize,
+                    blockSize = header.BlockSize,
+                    sectorCount = header.SectorCount,
+                    indexShift = header.IndexShift,
+                    indexEntryCount = header.IndexEntryCount,
+                    indexTableSizeBytes = header.IndexTableSizeBytes
+                    }
+                },
                 header = new
                 {
                     version = header.Version,
@@ -63,7 +83,8 @@ public static class InfoCommand
                     indexShift = header.IndexShift,
                     indexEntryCount = header.IndexEntryCount,
                     indexTableSizeBytes = header.IndexTableSizeBytes
-                }
+                },
+                error = (CsoCommandError?)null
             });
 
             return CliExitCodes.Success;

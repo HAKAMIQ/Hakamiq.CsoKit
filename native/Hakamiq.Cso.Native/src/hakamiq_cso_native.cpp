@@ -1,4 +1,4 @@
-﻿#define HAKAMIQ_CSO_NATIVE_EXPORTS
+#define HAKAMIQ_CSO_NATIVE_EXPORTS
 
 #include "hakamiq_cso_native.h"
 

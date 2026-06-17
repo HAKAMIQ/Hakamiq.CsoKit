@@ -1,13 +1,12 @@
+using System.Text;
+using Hakamiq.Cso.Core.Formats.Psp;
+
 namespace Hakamiq.Cso.Core.Formats.Iso;
 
 public sealed class PspIsoValidator
 {
-    private static readonly string[] RequiredPaths =
-    [
-        "UMD_DATA.BIN",
-        "PSP_GAME/PARAM.SFO",
-        "PSP_GAME/SYSDIR/EBOOT.BIN",
-    ];
+    private const int ParamSfoSafeReadLimit = 128 * 1024;
+    private const int UmdDataSafeReadLimit = 4 * 1024;
 
     public PspIsoValidationResult Validate(string inputPath, bool allowPadding = false)
     {
@@ -63,27 +62,92 @@ public sealed class PspIsoValidator
                     "ISO9660 primary volume descriptor was not found."));
             }
 
+            bool hasPspGame = false;
             bool hasUmdData = false;
             bool hasParamSfo = false;
             bool hasEboot = false;
+            string? discIdFromUmdData = null;
+            string? discIdFromParamSfo = null;
+            string? title = null;
+            string? category = null;
+            string? pspSystemVersion = null;
 
             if (hasPvd)
             {
-                hasUmdData = iso.TryFindPath("UMD_DATA.BIN", out _);
-                hasParamSfo = iso.TryFindPath("PSP_GAME/PARAM.SFO", out _);
+                hasPspGame = iso.TryFindPath("PSP_GAME", out Iso9660Entry pspGameEntry) && pspGameEntry.IsDirectory;
+                hasUmdData = iso.TryFindPath("UMD_DATA.BIN", out Iso9660Entry umdDataEntry);
+                hasParamSfo = iso.TryFindPath("PSP_GAME/PARAM.SFO", out Iso9660Entry paramSfoEntry);
                 hasEboot = iso.TryFindPath("PSP_GAME/SYSDIR/EBOOT.BIN", out _);
 
-                AddMissingPathIssues(issues, hasUmdData, hasParamSfo, hasEboot);
+                if (!hasPspGame)
+                {
+                    issues.Add(new PspIsoValidationIssue(
+                        "MissingPspGameDirectory",
+                        "Required PSP path PSP_GAME was not found.",
+                        "PSP_GAME"));
+                }
+
+                if (!hasUmdData)
+                {
+                    issues.Add(new PspIsoValidationIssue(
+                        "MissingUmdDataBin",
+                        "Required PSP path UMD_DATA.BIN was not found.",
+                        "UMD_DATA.BIN"));
+                }
+                else
+                {
+                    byte[] umdData = iso.ReadFile(umdDataEntry, UmdDataSafeReadLimit);
+                    discIdFromUmdData = ExtractDiscIdFromText(umdData);
+
+                    if (string.IsNullOrWhiteSpace(discIdFromUmdData))
+                    {
+                        warnings.Add("UMD_DATA.BIN was present, but a DISC_ID could not be extracted.");
+                    }
+                }
+
+                if (!hasParamSfo)
+                {
+                    warnings.Add("PSP_GAME/PARAM.SFO was not found; title and PARAM.SFO DISC_ID are unavailable.");
+                }
+                else
+                {
+                    byte[] paramSfo = iso.ReadFile(paramSfoEntry, ParamSfoSafeReadLimit);
+
+                    if (new PspParamSfoReader().TryRead(paramSfo, out PspDiscIdentity identity, out string? warning))
+                    {
+                        title = identity.Title;
+                        category = identity.Category;
+                        pspSystemVersion = identity.PspSystemVersion;
+                        discIdFromParamSfo = identity.DiscId;
+                    }
+                    else
+                    {
+                        warnings.Add(warning ?? "PARAM.SFO could not be parsed safely.");
+                    }
+                }
+
+                if (!hasEboot)
+                {
+                    warnings.Add("PSP_GAME/SYSDIR/EBOOT.BIN was not found; boot payload presence could not be confirmed.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(discIdFromUmdData) &&
+                    !string.IsNullOrWhiteSpace(discIdFromParamSfo) &&
+                    !string.Equals(NormalizeDiscId(discIdFromUmdData), NormalizeDiscId(discIdFromParamSfo), StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add($"DISC_ID mismatch: UMD_DATA.BIN reports {discIdFromUmdData}, PARAM.SFO reports {discIdFromParamSfo}.");
+                }
             }
             else
             {
-                foreach (string path in RequiredPaths)
-                {
-                    issues.Add(new PspIsoValidationIssue(
-                        ToMissingCode(path),
-                        $"Required PSP path was not validated because ISO9660 could not be read.",
-                        path));
-                }
+                issues.Add(new PspIsoValidationIssue(
+                    "MissingPspGameDirectory",
+                    "Required PSP path was not validated because ISO9660 could not be read.",
+                    "PSP_GAME"));
+                issues.Add(new PspIsoValidationIssue(
+                    "MissingUmdDataBin",
+                    "Required PSP path was not validated because ISO9660 could not be read.",
+                    "UMD_DATA.BIN"));
             }
 
             return new PspIsoValidationResult(
@@ -96,7 +160,13 @@ public sealed class PspIsoValidator
                 hasParamSfo,
                 hasEboot,
                 issues,
-                warnings);
+                warnings,
+                hasPspGame,
+                discIdFromUmdData,
+                discIdFromParamSfo,
+                title,
+                category,
+                pspSystemVersion);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -121,45 +191,42 @@ public sealed class PspIsoValidator
         }
     }
 
-    private static void AddMissingPathIssues(
-        List<PspIsoValidationIssue> issues,
-        bool hasUmdData,
-        bool hasParamSfo,
-        bool hasEboot)
+    private static string? ExtractDiscIdFromText(byte[] bytes)
     {
-        if (!hasUmdData)
+        string text = Encoding.ASCII.GetString(bytes).ToUpperInvariant();
+
+        for (int index = 0; index <= text.Length - 10; index++)
         {
-            issues.Add(new PspIsoValidationIssue(
-                "MissingUmdDataBin",
-                "Required PSP path UMD_DATA.BIN was not found.",
-                "UMD_DATA.BIN"));
+            if (IsAsciiLetter(text[index]) &&
+                IsAsciiLetter(text[index + 1]) &&
+                IsAsciiLetter(text[index + 2]) &&
+                IsAsciiLetter(text[index + 3]) &&
+                (text[index + 4] == '-' || text[index + 4] == '_') &&
+                IsAsciiDigit(text[index + 5]) &&
+                IsAsciiDigit(text[index + 6]) &&
+                IsAsciiDigit(text[index + 7]) &&
+                IsAsciiDigit(text[index + 8]) &&
+                IsAsciiDigit(text[index + 9]))
+            {
+                return text.Substring(index, 10).Replace('_', '-');
+            }
         }
 
-        if (!hasParamSfo)
-        {
-            issues.Add(new PspIsoValidationIssue(
-                "MissingParamSfo",
-                "Required PSP path PSP_GAME/PARAM.SFO was not found.",
-                "PSP_GAME/PARAM.SFO"));
-        }
-
-        if (!hasEboot)
-        {
-            issues.Add(new PspIsoValidationIssue(
-                "MissingEbootBin",
-                "Required PSP path PSP_GAME/SYSDIR/EBOOT.BIN was not found.",
-                "PSP_GAME/SYSDIR/EBOOT.BIN"));
-        }
+        return null;
     }
 
-    private static string ToMissingCode(string path)
+    private static string NormalizeDiscId(string discId)
     {
-        return path.ToUpperInvariant() switch
-        {
-            "UMD_DATA.BIN" => "MissingUmdDataBin",
-            "PSP_GAME/PARAM.SFO" => "MissingParamSfo",
-            "PSP_GAME/SYSDIR/EBOOT.BIN" => "MissingEbootBin",
-            _ => "MissingPspIsoPath",
-        };
+        return discId.Trim().Replace('_', '-').ToUpperInvariant();
+    }
+
+    private static bool IsAsciiLetter(char value)
+    {
+        return value is >= 'A' and <= 'Z';
+    }
+
+    private static bool IsAsciiDigit(char value)
+    {
+        return value is >= '0' and <= '9';
     }
 }

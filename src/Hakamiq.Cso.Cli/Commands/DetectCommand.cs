@@ -18,17 +18,28 @@ public static class DetectCommand
         {
             JsonConsole.Write(new
             {
+                schemaVersion = 1,
                 command = "detect",
                 success = result.Success,
                 input = SafeFullPath(options.InputPath),
-                format = result.Format.ToString(),
+                output = (string?)null,
+                format = result.Success ? result.Format.ToString() : null,
+                warnings = result.Warnings,
+                diagnostics = new
+                {
+                    magic = result.Magic,
+                    headerSize = result.HeaderSize,
+                    uncompressedSize = result.UncompressedSize,
+                    blockSize = result.BlockSize,
+                    indexShift = result.IndexShift,
+                    sectorCount = result.SectorCount
+                },
                 magic = result.Magic,
                 headerSize = result.HeaderSize,
                 uncompressedSize = result.UncompressedSize,
                 blockSize = result.BlockSize,
                 indexShift = result.IndexShift,
                 sectorCount = result.SectorCount,
-                warnings = result.Warnings,
                 error = result.Success
                     ? null
                     : new CsoCommandError(result.ErrorCode ?? "DetectFailed", result.ErrorMessage ?? "Format detection failed.")

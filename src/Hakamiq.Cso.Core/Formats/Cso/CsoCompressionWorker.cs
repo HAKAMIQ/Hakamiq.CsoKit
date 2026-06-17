@@ -9,6 +9,7 @@ public sealed class CsoCompressionWorker
     private readonly CsoCompressionProfileSettings settings;
     private readonly CsoBestCandidateSelector candidateSelector;
     private readonly CsoTrialEngine trialEngine;
+    private readonly bool collectTrialReports;
 
     public CsoCompressionWorker()
         : this(CsoCompressionProfilePolicy.Create(CsoCompressionProfilePolicy.DefaultProfile), new CsoBestCandidateSelector())
@@ -18,8 +19,9 @@ public sealed class CsoCompressionWorker
     public CsoCompressionWorker(
         CsoCompressionProfile profile,
         bool useZopfli = false,
-        int zopfliIterations = DefaultZopfliIterations)
-        : this(CsoCompressionProfilePolicy.Create(profile), new CsoBestCandidateSelector(), useZopfli, zopfliIterations)
+        int zopfliIterations = DefaultZopfliIterations,
+        bool collectTrialReports = false)
+        : this(CsoCompressionProfilePolicy.Create(profile), new CsoBestCandidateSelector(), useZopfli, zopfliIterations, collectTrialReports)
     {
     }
 
@@ -39,10 +41,12 @@ public sealed class CsoCompressionWorker
         CsoCompressionProfileSettings settings,
         CsoBestCandidateSelector candidateSelector,
         bool useZopfli,
-        int zopfliIterations = DefaultZopfliIterations)
+        int zopfliIterations = DefaultZopfliIterations,
+        bool collectTrialReports = false)
     {
         this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
         this.candidateSelector = candidateSelector ?? throw new ArgumentNullException(nameof(candidateSelector));
+        this.collectTrialReports = collectTrialReports;
         bool useExperimental = zopfliIterations > DefaultZopfliIterations;
 
         CsoTrialPlan plan = CsoTrialPlanner.CreatePlan(this.settings.Profile, useZopfli, useExperimental);
@@ -52,6 +56,8 @@ public sealed class CsoCompressionWorker
 
     public SectorResult Compress(SectorJob job)
     {
-        return trialEngine.Compress(job);
+        return collectTrialReports
+            ? trialEngine.CompressWithReport(job)
+            : trialEngine.Compress(job);
     }
 }

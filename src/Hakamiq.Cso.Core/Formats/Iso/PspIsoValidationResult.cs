@@ -10,7 +10,13 @@ public sealed record PspIsoValidationResult(
     bool HasParamSfo,
     bool HasEbootBin,
     IReadOnlyList<PspIsoValidationIssue> Issues,
-    IReadOnlyList<string> Warnings)
+    IReadOnlyList<string> Warnings,
+    bool HasPspGame = false,
+    string? DiscIdFromUmdData = null,
+    string? DiscIdFromParamSfo = null,
+    string? Title = null,
+    string? Category = null,
+    string? PspSystemVersion = null)
 {
     public static PspIsoValidationResult Fail(
         string inputPath,
@@ -21,7 +27,13 @@ public sealed record PspIsoValidationResult(
         bool hasIso9660PrimaryVolumeDescriptor = false,
         bool hasUmdDataBin = false,
         bool hasParamSfo = false,
-        bool hasEbootBin = false)
+        bool hasEbootBin = false,
+        bool hasPspGame = false,
+        string? discIdFromUmdData = null,
+        string? discIdFromParamSfo = null,
+        string? title = null,
+        string? category = null,
+        string? pspSystemVersion = null)
     {
         return new PspIsoValidationResult(
             Success: false,
@@ -33,6 +45,12 @@ public sealed record PspIsoValidationResult(
             hasParamSfo,
             hasEbootBin,
             issues,
-            warnings ?? Array.Empty<string>());
+            warnings ?? Array.Empty<string>(),
+            hasPspGame,
+            discIdFromUmdData,
+            discIdFromParamSfo,
+            title,
+            category,
+            pspSystemVersion);
     }
 }

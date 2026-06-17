@@ -1,4 +1,4 @@
-﻿using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Formats.Cso;
 
 using Hakamiq.Cso.Core.Native;
 

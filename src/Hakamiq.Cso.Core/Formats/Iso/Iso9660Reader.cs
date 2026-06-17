@@ -78,6 +78,39 @@ public sealed class Iso9660Reader
         return true;
     }
 
+
+
+    public byte[] ReadFile(Iso9660Entry file, int maxBytes)
+    {
+        if (file.IsDirectory)
+        {
+            throw new InvalidDataException("ISO9660 entry is a directory, not a file.");
+        }
+
+        if (maxBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxBytes), "Maximum read size must be positive.");
+        }
+
+        if (file.Size > maxBytes)
+        {
+            throw new InvalidDataException($"ISO9660 file {file.Name} is larger than the safe read limit of {maxBytes:N0} bytes.");
+        }
+
+        ulong start = (ulong)file.Extent * IsoAlignmentPolicy.SectorSize;
+        ulong end = checked(start + file.Size);
+
+        if (end > (ulong)input.Length)
+        {
+            throw new EndOfStreamException($"ISO9660 file {file.Name} extends beyond the end of the file.");
+        }
+
+        byte[] buffer = new byte[checked((int)file.Size)];
+        input.Position = checked((long)start);
+        ReadExactly(input, buffer);
+        return buffer;
+    }
+
     public IReadOnlyList<Iso9660Entry> ReadDirectory(Iso9660Entry directory)
     {
         if (!directory.IsDirectory)

@@ -6,7 +6,7 @@ R1 resolves the native-backend work as an architecture boundary, not a compressi
 
 ## Decision
 
-The 0.5.0 production compression path remains the managed CSO compressor. The native DLL is release-gated only for runtime availability, ABI compatibility, `native-info`, and fallback behavior.
+The production compression path remains the managed CSO compressor unless native candidates are available and selected safely. The native DLL is release-gated only for runtime availability, ABI compatibility, `native-info`, and fallback behavior.
 
 ## Rationale
 

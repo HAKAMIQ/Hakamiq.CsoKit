@@ -1,4 +1,4 @@
-﻿using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -69,20 +69,25 @@ public static class DecompressCommand
             {
                 JsonConsole.Write(new
                 {
+                    schemaVersion = 1,
                     command = "decompress",
                     success = result.Success,
                     input = SafeFullPath(options.InputPath),
                     output = SafeFullPath(outputPath),
+                    format = "Cso1",
+                    warnings = Array.Empty<string>(),
+                    diagnostics = new
+                    {
+                        force = options.Force && !autoOutput,
+                        autoOutput,
+                        bytesWritten = result.BytesWritten
+                    },
                     force = options.Force && !autoOutput,
                     autoOutput,
                     bytesWritten = result.BytesWritten,
                     error = result.Success
                         ? null
-                        : new
-                        {
-                            code = result.ErrorCode,
-                            message = result.ErrorMessage
-                        }
+                        : new CsoCommandError(result.ErrorCode ?? "DecompressionFailed", result.ErrorMessage ?? "CSO decompression failed.")
                 });
 
                 return result.Success

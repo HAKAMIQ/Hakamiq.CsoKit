@@ -12,8 +12,14 @@ public static class RepairCommand
             {
                 JsonConsole.Write(new
                 {
+                    schemaVersion = 1,
                     command = "repair",
                     success = false,
+                    input = args.Length > 0 ? SafeFullPath(args[0]) : null,
+                    output = (string?)null,
+                    format = (string?)null,
+                    warnings = Array.Empty<string>(),
+                    diagnostics = new { },
                     error = new CsoCommandError("InvalidArguments", errorMessage ?? "Invalid repair command arguments.")
                 });
             }
@@ -38,17 +44,29 @@ public static class RepairCommand
         {
             JsonConsole.Write(new
             {
+                schemaVersion = 1,
                 command = "repair",
                 success = result.Success,
                 input = SafeFullPath(options.InputPath),
                 output = SafeFullPath(options.OutputPath),
+                format = result.InputFormat,
+                warnings = Array.Empty<string>(),
+                diagnostics = new
+                {
+                    mode = result.Mode,
+                    usedTempIso = result.UsedTempIso,
+                    fallbackReason = result.FallbackReason
+                },
                 inputFormat = result.InputFormat,
                 profile = CsoCompressionProfilePolicy.GetCliName(options.Profile),
                 repair = new
                 {
                     padLastSector = options.PadLastSector,
                     paddingBytes = result.PaddingBytes,
-                    deepVerify = options.DeepVerify
+                    deepVerify = options.DeepVerify,
+                    mode = result.Mode,
+                    usedTempIso = result.UsedTempIso,
+                    fallbackReason = result.FallbackReason
                 },
                 metrics = new
                 {
@@ -71,6 +89,8 @@ public static class RepairCommand
             Console.WriteLine($"Output: {SafeFullPath(options.OutputPath)}");
             Console.WriteLine("Status: OK");
             Console.WriteLine($"Input format: {result.InputFormat}");
+            Console.WriteLine($"Repair mode: {result.Mode}");
+            Console.WriteLine($"Used temp ISO: {result.UsedTempIso.ToString().ToLowerInvariant()}");
             Console.WriteLine($"Profile: {CsoCompressionProfilePolicy.GetCliName(options.Profile)}");
             Console.WriteLine($"Bytes read: {result.BytesRead:N0}");
             Console.WriteLine($"Bytes written: {result.BytesWritten:N0}");

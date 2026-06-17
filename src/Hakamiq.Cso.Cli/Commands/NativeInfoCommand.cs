@@ -27,7 +27,7 @@ internal static class NativeInfoCommand
         Console.WriteLine($"  Native zlib: {Availability(capabilities.HasZlib)}");
         Console.WriteLine($"  Native libdeflate: {Availability(capabilities.HasLibDeflate)}");
         Console.WriteLine($"  Native Zopfli: {Availability(capabilities.HasZopfli)}");
-        Console.WriteLine($"  Native 7z-deflate: {Availability(capabilities.HasSevenZipDeflate)}");
+        Console.WriteLine($"  Native 7z-deflate: {SevenZipDeflateAvailability(capabilities.HasSevenZipDeflate)}");
         Console.WriteLine("  Managed LZ4 decode: available");
         Console.WriteLine("  Native LZ4 decode: unavailable");
         Console.WriteLine("  LZ4 encode: unavailable");
@@ -38,5 +38,10 @@ internal static class NativeInfoCommand
     private static string Availability(bool available)
     {
         return available ? "available" : "unavailable";
+    }
+
+    private static string SevenZipDeflateAvailability(bool available)
+    {
+        return available ? "hidden" : "unavailable";
     }
 }

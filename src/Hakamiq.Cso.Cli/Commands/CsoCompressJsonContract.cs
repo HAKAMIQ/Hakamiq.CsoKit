@@ -1,3 +1,4 @@
+using Hakamiq.Cso.Core.Compression.Trials;
 using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Cli.Commands;
@@ -13,7 +14,8 @@ public static class CsoCompressJsonContract
         uint blockSize = CsoCompressor.DefaultBlockSize,
         int workerCount = 1,
         bool useZopfli = false,
-        bool deepVerify = false)
+        bool deepVerify = false,
+        bool codecReport = false)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -24,6 +26,18 @@ public static class CsoCompressJsonContract
             "measure",
             result.Success,
             input,
+            (string?)null,
+            "RawIso",
+            Array.Empty<string>(),
+            new
+            {
+                mode = "measure",
+                profile = profileSettings.CliName,
+                blockSize,
+                workerCount,
+                useZopfli,
+                deepVerify
+            },
             new CsoCompressJsonOptions(
                 CsoProfileOutput.From(profileSettings),
                 false,
@@ -54,7 +68,8 @@ public static class CsoCompressJsonContract
         uint blockSize = CsoCompressor.DefaultBlockSize,
         int workerCount = 1,
         bool useZopfli = false,
-        bool deepVerify = false)
+        bool deepVerify = false,
+        bool codecReport = false)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -66,6 +81,18 @@ public static class CsoCompressJsonContract
             result.Success,
             input,
             output,
+            "Cso1",
+            Array.Empty<string>(),
+            new
+            {
+                mode = "write",
+                profile = profileSettings.CliName,
+                blockSize,
+                workerCount,
+                useZopfli,
+                deepVerify,
+                codecReport
+            },
             new CsoCompressJsonOptions(
                 CsoProfileOutput.From(profileSettings),
                 force,
@@ -80,6 +107,7 @@ public static class CsoCompressJsonContract
                 result.CompressedBlocks,
                 result.StoredBlocks,
                 result.EffectiveCodecWins),
+            codecReport ? result.CodecTrialSummary : null,
             result.Success ? null : Error(result.ErrorCode, result.ErrorMessage));
     }
 
@@ -90,6 +118,11 @@ public static class CsoCompressJsonContract
             "compress",
             "arguments",
             Success: false,
+            Input: (string?)null,
+            Output: (string?)null,
+            Format: (string?)null,
+            Warnings: Array.Empty<string>(),
+            Diagnostics: new { },
             Error("InvalidArguments", message));
     }
 
@@ -133,6 +166,10 @@ public sealed record CsoMeasureJsonOutput(
     string Mode,
     bool Success,
     string Input,
+    string? Output,
+    string? Format,
+    string[] Warnings,
+    object Diagnostics,
     CsoCompressJsonOptions Options,
     CsoMeasureJsonMetrics Metrics,
     CsoCommandError? Error);
@@ -144,8 +181,12 @@ public sealed record CsoWriteJsonOutput(
     bool Success,
     string Input,
     string Output,
+    string? Format,
+    string[] Warnings,
+    object Diagnostics,
     CsoCompressJsonOptions Options,
     CsoWriteJsonMetrics Metrics,
+    CodecTrialSummary? CodecReport,
     CsoCommandError? Error);
 
 public sealed record CsoArgumentErrorJsonOutput(
@@ -153,4 +194,9 @@ public sealed record CsoArgumentErrorJsonOutput(
     string Command,
     string Mode,
     bool Success,
+    string? Input,
+    string? Output,
+    string? Format,
+    string[] Warnings,
+    object Diagnostics,
     CsoCommandError Error);

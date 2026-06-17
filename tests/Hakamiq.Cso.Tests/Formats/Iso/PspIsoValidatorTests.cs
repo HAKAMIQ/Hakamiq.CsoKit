@@ -43,8 +43,9 @@ public sealed class PspIsoValidatorTests
 
             Assert.False(result.Success);
             Assert.Contains(result.Issues, issue => issue.Code == "MissingUmdDataBin");
-            Assert.Contains(result.Issues, issue => issue.Code == "MissingParamSfo");
-            Assert.Contains(result.Issues, issue => issue.Code == "MissingEbootBin");
+            Assert.Contains(result.Issues, issue => issue.Code == "MissingPspGameDirectory");
+            Assert.DoesNotContain(result.Issues, issue => issue.Code == "MissingParamSfo");
+            Assert.DoesNotContain(result.Issues, issue => issue.Code == "MissingEbootBin");
         }
         finally
         {

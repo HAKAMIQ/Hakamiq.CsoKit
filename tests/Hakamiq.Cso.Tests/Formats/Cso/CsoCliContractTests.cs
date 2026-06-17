@@ -17,6 +17,9 @@ public sealed class CsoCliContractTests
         Assert.Contains($"--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>", run.StdOut, StringComparison.Ordinal);
         Assert.Contains("[--fast]", run.StdOut, StringComparison.Ordinal);
         Assert.Contains("hakamiq-cso compress <input.iso>", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains("Examples:", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains("hakamiq-cso analyze game.iso --psp", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains("hakamiq-cso repair old.zso -o fixed.cso --deep-verify", run.StdOut, StringComparison.Ordinal);
         Assert.DoesNotContain("--format", run.StdOut, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -220,6 +223,54 @@ public sealed class CsoCliContractTests
         {
             File.Delete(path);
         }
+    }
+
+
+    [Theory]
+    [InlineData("detect")]
+    [InlineData("analyze")]
+    [InlineData("info")]
+    [InlineData("verify")]
+    [InlineData("decompress")]
+    [InlineData("compress")]
+    [InlineData("repair")]
+    public void JsonFailureCommands_UseUnifiedEnvelope(string command)
+    {
+        string missingInput = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".cso");
+        string missingIso = Path.ChangeExtension(missingInput, ".iso");
+        string output = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".out");
+
+        string[] args = command switch
+        {
+            "detect" => ["detect", missingInput, "--json"],
+            "analyze" => ["analyze", missingIso, "--psp", "--json"],
+            "info" => ["info", missingInput, "--json"],
+            "verify" => ["verify", missingInput, "--json"],
+            "decompress" => ["decompress", missingInput, "-o", output, "--json"],
+            "compress" => ["compress", missingIso, "-o", output, "--json"],
+            "repair" => ["repair", missingInput, "-o", output, "--json"],
+            _ => throw new ArgumentOutOfRangeException(nameof(command), command, "Unknown command."),
+        };
+
+        CapturedRun run = Capture(() => CsoCommandDispatcher.Run(args));
+
+        Assert.NotEqual(CliExitCodes.Success, run.ExitCode);
+        Assert.Empty(run.StdErr);
+
+        using JsonDocument document = JsonDocument.Parse(run.StdOut);
+        JsonElement root = document.RootElement;
+
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(command, root.GetProperty("command").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.True(root.TryGetProperty("input", out _));
+        Assert.True(root.TryGetProperty("output", out _));
+        Assert.True(root.TryGetProperty("format", out _));
+        Assert.Equal(JsonValueKind.Array, root.GetProperty("warnings").ValueKind);
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("diagnostics").ValueKind);
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("error").ValueKind);
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("error").GetProperty("code").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("error").GetProperty("message").GetString()));
     }
 
     private static CapturedRun Capture(Func<int> run)

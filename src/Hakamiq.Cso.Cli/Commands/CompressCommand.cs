@@ -170,7 +170,8 @@ public static class CompressCommand
                 options.Profile,
                 options.WorkerCount,
                 options.UseZopfli,
-                options.DeepVerify));
+                options.DeepVerify,
+                options.CodecReport));
 
         progress?.FinishLine();
 
@@ -186,7 +187,8 @@ public static class CompressCommand
                 options.BlockSize,
                 options.WorkerCount,
                 options.UseZopfli,
-                options.DeepVerify));
+                options.DeepVerify,
+                options.CodecReport));
 
             return result.Success
                 ? CliExitCodes.Success
