@@ -164,3 +164,4 @@ dotnet test .\Hakamiq.CsoKit.slnx -c Debug --no-build
 - Add `docs/R1_ARCHITECTURE_REPAIR.md` and refresh the release scorecard to separate native runtime proof from compression performance claims.
 
 
+- Remove stale external benchmark notes so Hakamiq.CsoKit remains fully independent.
