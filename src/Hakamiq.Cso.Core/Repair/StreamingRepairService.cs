@@ -22,6 +22,8 @@ public sealed class StreamingRepairService
                 options.ForceOverwrite,
                 options.Profile,
                 options.DeepVerify || options.Profile == CsoCompressionProfile.GameSafe,
+                options.CollectCodecReport,
+                options.CodecReportBlockLimit,
                 options.CancellationToken);
 
             if (!write.Success)
@@ -40,7 +42,8 @@ public sealed class StreamingRepairService
                 write.BytesWritten,
                 paddingBytes: 0,
                 mode: RepairMode.Streaming.ToString(),
-                usedTempIso: false);
+                usedTempIso: false,
+                codecTrialSummary: write.CodecTrialSummary);
         }
         catch (BlockContainerReadException ex)
         {

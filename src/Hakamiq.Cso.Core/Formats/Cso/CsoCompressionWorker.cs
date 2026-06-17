@@ -12,7 +12,9 @@ public sealed class CsoCompressionWorker
     private readonly bool collectTrialReports;
 
     public CsoCompressionWorker()
-        : this(CsoCompressionProfilePolicy.Create(CsoCompressionProfilePolicy.DefaultProfile), new CsoBestCandidateSelector())
+        : this(
+            CsoCompressionProfilePolicy.Create(CsoCompressionProfilePolicy.DefaultProfile),
+            new CsoBestCandidateSelector(CsoCompressionProfilePolicy.DefaultProfile))
     {
     }
 
@@ -21,12 +23,12 @@ public sealed class CsoCompressionWorker
         bool useZopfli = false,
         int zopfliIterations = DefaultZopfliIterations,
         bool collectTrialReports = false)
-        : this(CsoCompressionProfilePolicy.Create(profile), new CsoBestCandidateSelector(), useZopfli, zopfliIterations, collectTrialReports)
+        : this(CsoCompressionProfilePolicy.Create(profile), new CsoBestCandidateSelector(profile), useZopfli, zopfliIterations, collectTrialReports)
     {
     }
 
     public CsoCompressionWorker(CsoCompressionProfileSettings settings)
-        : this(settings, new CsoBestCandidateSelector())
+        : this(settings, new CsoBestCandidateSelector(settings.Profile))
     {
     }
 

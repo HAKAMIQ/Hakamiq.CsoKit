@@ -129,6 +129,66 @@ public sealed class CsoCompressionDecisionTests
     }
 
     [Fact]
+    public void BestCandidateSelector_FastProfile_WhenNearTieCandidateIsMuchCheaper_PrefersFasterCandidate()
+    {
+        byte[] source = new byte[2048];
+        SectorJob job = new(
+            BlockIndex: 6,
+            SourceOffset: 12288,
+            SourceLength: source.Length,
+            SourceBuffer: source);
+
+        SectorResult slowSmaller = CreateDecisionCandidate(
+            job,
+            outputLength: 100,
+            codecName: "slow-smaller",
+            encodeMilliseconds: 100,
+            decodeMilliseconds: 10);
+
+        SectorResult fastLarger = CreateDecisionCandidate(
+            job,
+            outputLength: 105,
+            codecName: "fast-larger",
+            encodeMilliseconds: 1,
+            decodeMilliseconds: 1);
+
+        CsoBestCandidateSelector selector = new(CsoCompressionProfile.Fast);
+        SectorResult result = selector.Select(job, new[] { slowSmaller, fastLarger });
+
+        Assert.Equal("fast-larger", result.EffectiveCodecName);
+    }
+
+    [Fact]
+    public void BestCandidateSelector_GameSafeProfile_WhenNearTieCandidateIsMuchCheaper_StillPrefersSmallest()
+    {
+        byte[] source = new byte[2048];
+        SectorJob job = new(
+            BlockIndex: 7,
+            SourceOffset: 14336,
+            SourceLength: source.Length,
+            SourceBuffer: source);
+
+        SectorResult slowSmaller = CreateDecisionCandidate(
+            job,
+            outputLength: 100,
+            codecName: "slow-smaller",
+            encodeMilliseconds: 100,
+            decodeMilliseconds: 10);
+
+        SectorResult fastLarger = CreateDecisionCandidate(
+            job,
+            outputLength: 105,
+            codecName: "fast-larger",
+            encodeMilliseconds: 1,
+            decodeMilliseconds: 1);
+
+        CsoBestCandidateSelector selector = new(CsoCompressionProfile.GameSafe);
+        SectorResult result = selector.Select(job, new[] { slowSmaller, fastLarger });
+
+        Assert.Equal("slow-smaller", result.EffectiveCodecName);
+    }
+
+    [Fact]
     public void CompressionWorker_Compress_WhenBlockIsSmallAndUnhelpful_StoresOriginalBytes()
     {
         byte[] source = new byte[] { 1, 2, 3, 4 };
@@ -163,6 +223,34 @@ public sealed class CsoCompressionDecisionTests
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
         Assert.NotEqual("store", result.EffectiveCodecName);
         Assert.True(result.OutputLength < source.Length);
+    }
+
+    private static SectorResult CreateDecisionCandidate(
+        SectorJob job,
+        int outputLength,
+        string codecName,
+        double encodeMilliseconds,
+        double decodeMilliseconds)
+    {
+        return new SectorResult(
+            job.BlockIndex,
+            job.SourceOffset,
+            job.SourceLength,
+            outputLength,
+            IsStored: false,
+            Method: CompressionMethod.RawDeflate,
+            Level: 6,
+            Buffer: new byte[outputLength],
+            CodecName: codecName,
+            DecisionMetrics: new(
+                outputLength,
+                Ratio: (double)outputLength / job.SourceLength,
+                RatioGain: 1.0 - ((double)outputLength / job.SourceLength),
+                encodeMilliseconds,
+                decodeMilliseconds,
+                PassedRoundtrip: true,
+                NativeRequired: false,
+                CompatibilityRisk: "standard-raw-deflate"));
     }
 }
 

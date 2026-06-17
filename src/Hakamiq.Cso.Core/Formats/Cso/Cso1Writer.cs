@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Hakamiq.Cso.Core.Compression.Trials;
 using Hakamiq.Cso.Core.Formats.Containers;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
@@ -17,6 +18,8 @@ public sealed class Cso1Writer
         bool forceOverwrite,
         CsoCompressionProfile profile = CsoCompressionProfile.GameSafe,
         bool deepVerify = true,
+        bool collectCodecReport = false,
+        int codecReportBlockLimit = 64,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
@@ -24,6 +27,11 @@ public sealed class Cso1Writer
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (collectCodecReport && codecReportBlockLimit < 0)
+        {
+            return CsoCompressResult.Fail("InvalidCodecReportBlockLimit", "Codec report block limit cannot be negative.");
+        }
 
         CsoOutputSafetyResult outputSafety = outputSafetyPolicy.Validate(
             inputPath,
@@ -87,6 +95,8 @@ public sealed class Cso1Writer
                     targetBlockSizeInt,
                     totalOutputBlocks,
                     profile,
+                    collectCodecReport,
+                    codecReportBlockLimit,
                     cancellationToken);
 
                 output.Flush(true);
@@ -147,12 +157,14 @@ public sealed class Cso1Writer
         int targetBlockSize,
         int totalOutputBlocks,
         CsoCompressionProfile profile,
+        bool collectCodecReport,
+        int codecReportBlockLimit,
         CancellationToken cancellationToken)
     {
         ulong dataStart = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalOutputBlocks + 1) * sizeof(uint)));
         CsoIndexBuilder indexBuilder = new(totalOutputBlocks, indexShift: 0);
         CsoOrderedOutputWriter outputWriter = new(output);
-        CsoCompressionWorker compressionWorker = new(profile, useZopfli: false);
+        CsoCompressionWorker compressionWorker = new(profile, useZopfli: false, collectTrialReports: collectCodecReport);
 
         outputWriter.ReserveDataStart(dataStart);
 
@@ -165,6 +177,9 @@ public sealed class Cso1Writer
         int compressedBlocks = 0;
         int storedBlocks = 0;
         Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
+        CodecTrialSummaryBuilder? trialSummaryBuilder = collectCodecReport
+            ? new CodecTrialSummaryBuilder(codecReportBlockLimit)
+            : null;
 
         for (int readerBlockIndex = 0; readerBlockIndex < reader.BlockCount; readerBlockIndex++)
         {
@@ -209,6 +224,7 @@ public sealed class Cso1Writer
                         indexBuilder,
                         outputWriter,
                         codecWins,
+                        trialSummaryBuilder,
                         ref compressedBlocks,
                         ref storedBlocks);
 
@@ -237,6 +253,7 @@ public sealed class Cso1Writer
                 indexBuilder,
                 outputWriter,
                 codecWins,
+                trialSummaryBuilder,
                 ref compressedBlocks,
                 ref storedBlocks);
 
@@ -262,7 +279,8 @@ public sealed class Cso1Writer
             bytesWritten,
             compressedBlocks,
             storedBlocks,
-            codecWins);
+            codecWins,
+            trialSummaryBuilder?.Build(codecWins));
     }
 
     private static void WriteOneOutputBlock(
@@ -274,6 +292,7 @@ public sealed class Cso1Writer
         CsoIndexBuilder indexBuilder,
         CsoOrderedOutputWriter outputWriter,
         Dictionary<string, int> codecWins,
+        CodecTrialSummaryBuilder? trialSummaryBuilder,
         ref int compressedBlocks,
         ref int storedBlocks)
     {
@@ -300,6 +319,11 @@ public sealed class Cso1Writer
         codecWins[codecName] = codecWins.TryGetValue(codecName, out int current)
             ? checked(current + 1)
             : 1;
+
+        if (sectorResult.TrialReport is not null)
+        {
+            trialSummaryBuilder?.Add(sectorResult.TrialReport);
+        }
     }
 
     private static void WriteHeaderAndIndex(

@@ -7,4 +7,6 @@ public sealed record CsoRepairOptions(
     CsoCompressionProfile Profile = CsoCompressionProfile.GameSafe,
     bool PadLastSector = false,
     bool DeepVerify = true,
-    CancellationToken CancellationToken = default);
+    CancellationToken CancellationToken = default,
+    bool CollectCodecReport = false,
+    int CodecReportBlockLimit = 64);

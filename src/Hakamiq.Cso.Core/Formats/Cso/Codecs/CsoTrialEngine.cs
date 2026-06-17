@@ -129,7 +129,13 @@ public sealed class CsoTrialEngine
                 continue;
             }
 
-            candidates.Add(ToSectorResult(job, result));
+            candidates.Add(ToSectorResult(
+                job,
+                result,
+                encodeTimer.Elapsed.TotalMilliseconds,
+                decodeTimer.Elapsed.TotalMilliseconds,
+                passedRoundtrip));
+
             candidateReports.Add(CreateCandidateReport(
                 result.Kind,
                 result.Name,
@@ -164,9 +170,7 @@ public sealed class CsoTrialEngine
         }
 
         IReadOnlyList<CodecTrialCandidateResult> finalized = candidateReports
-            .Select(candidate => candidate.CodecName.Equals(selectedCodec, StringComparison.OrdinalIgnoreCase)
-                ? candidate with { SelectedWinner = true }
-                : candidate)
+            .Select(candidate => FinalizeCandidateReport(candidate, selected, selectedCodec))
             .ToArray();
 
         CodecTrialReport report = new(
@@ -179,7 +183,12 @@ public sealed class CsoTrialEngine
         return selected with { TrialReport = report };
     }
 
-    private static SectorResult ToSectorResult(SectorJob job, CsoCodecTrialResult result)
+    private static SectorResult ToSectorResult(
+        SectorJob job,
+        CsoCodecTrialResult result,
+        double encodeMilliseconds = 0,
+        double decodeMilliseconds = 0,
+        bool passedRoundtrip = true)
     {
         return new SectorResult(
             job.BlockIndex,
@@ -192,7 +201,61 @@ public sealed class CsoTrialEngine
                 : CompressionMethod.RawDeflate,
             Level: GetLogicalLevel(result.Kind),
             Buffer: result.Buffer,
-            CodecName: result.Name);
+            CodecName: result.Name,
+            DecisionMetrics: CreateDecisionMetrics(
+                result.Kind,
+                result.Length,
+                job.SourceLength,
+                encodeMilliseconds,
+                decodeMilliseconds,
+                passedRoundtrip));
+    }
+
+    private static CodecTrialCandidateResult FinalizeCandidateReport(
+        CodecTrialCandidateResult candidate,
+        SectorResult selected,
+        string selectedCodec)
+    {
+        if (candidate.CodecName.Equals(selectedCodec, StringComparison.OrdinalIgnoreCase))
+        {
+            return candidate with { SelectedWinner = true };
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.RejectedReason))
+        {
+            return candidate;
+        }
+
+        string rejectedReason = selected.IsStored
+            ? "StoredPolicyWinner"
+            : candidate.CompressedBytes <= selected.OutputLength
+                ? "HigherDecisionCostOrPolicy"
+                : "LargerThanSelected";
+
+        return candidate with { RejectedReason = rejectedReason };
+    }
+
+    private static CodecTrialDecisionMetrics CreateDecisionMetrics(
+        CsoCodecKind kind,
+        int compressedBytes,
+        int sourceBytes,
+        double encodeMilliseconds,
+        double decodeMilliseconds,
+        bool passedRoundtrip)
+    {
+        double ratio = sourceBytes <= 0
+            ? 0
+            : (double)compressedBytes / sourceBytes;
+
+        return new CodecTrialDecisionMetrics(
+            compressedBytes,
+            ratio,
+            RatioGain: Math.Max(0, 1.0 - ratio),
+            encodeMilliseconds,
+            decodeMilliseconds,
+            passedRoundtrip,
+            NativeRequired: IsNativeKind(kind),
+            CompatibilityRisk: GetCompatibilityRisk(kind));
     }
 
     private static CodecTrialCandidateResult CreateCandidateReport(
@@ -243,6 +306,29 @@ public sealed class CsoTrialEngine
             CsoCodecKind.NativeSevenZipDeflate => "native-7z-deflate-unavailable",
             _ => "unknown",
         };
+    }
+
+    private static bool IsNativeKind(CsoCodecKind kind)
+    {
+        return kind is CsoCodecKind.NativeZlibDefault or
+            CsoCodecKind.NativeZlibFiltered or
+            CsoCodecKind.NativeZlibHuffmanOnly or
+            CsoCodecKind.NativeZlibRle or
+            CsoCodecKind.NativeLibDeflate1 or
+            CsoCodecKind.NativeLibDeflate6 or
+            CsoCodecKind.NativeLibDeflate9 or
+            CsoCodecKind.NativeLibDeflate12 or
+            CsoCodecKind.NativeZopfli5 or
+            CsoCodecKind.NativeZopfli15 or
+            CsoCodecKind.NativeZopfli25 or
+            CsoCodecKind.NativeSevenZipDeflate;
+    }
+
+    private static string GetCompatibilityRisk(CsoCodecKind kind)
+    {
+        return kind == CsoCodecKind.Store
+            ? "none"
+            : "standard-raw-deflate";
     }
 
     private static int GetLogicalLevel(CsoCodecKind kind)

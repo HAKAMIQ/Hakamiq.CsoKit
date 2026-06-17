@@ -11,4 +11,5 @@ public sealed record CsoCompressOptions(
     int WorkerCount = 1,
     bool UseZopfli = false,
     bool DeepVerifyOutput = false,
-    bool CollectCodecReport = false);
+    bool CollectCodecReport = false,
+    int CodecReportBlockLimit = 64);

@@ -38,7 +38,9 @@ public static class RepairCommand
                 options.Force,
                 options.Profile,
                 options.PadLastSector,
-                options.DeepVerify));
+                options.DeepVerify,
+                CollectCodecReport: options.CodecReport,
+                CodecReportBlockLimit: options.CodecReportBlockLimit));
 
         if (options.Json)
         {
@@ -64,6 +66,8 @@ public static class RepairCommand
                     padLastSector = options.PadLastSector,
                     paddingBytes = result.PaddingBytes,
                     deepVerify = options.DeepVerify,
+                    codecReport = options.CodecReport,
+                    codecReportBlockLimit = options.CodecReportBlockLimit,
                     mode = result.Mode,
                     usedTempIso = result.UsedTempIso,
                     fallbackReason = result.FallbackReason
@@ -73,6 +77,7 @@ public static class RepairCommand
                     bytesRead = result.BytesRead,
                     bytesWritten = result.BytesWritten
                 },
+                codecReport = options.CodecReport ? result.CodecTrialSummary : null,
                 error = result.Success
                     ? null
                     : new CsoCommandError(result.ErrorCode ?? "RepairNotPossible", result.ErrorMessage ?? "Repair was not possible.")
@@ -98,6 +103,16 @@ public static class RepairCommand
             if (result.PaddingBytes > 0)
             {
                 Console.WriteLine($"Padding added: {result.PaddingBytes:N0}");
+            }
+
+            if (options.CodecReport && result.CodecTrialSummary is not null)
+            {
+                Console.WriteLine("Codec wins:");
+
+                foreach (KeyValuePair<string, int> item in result.CodecTrialSummary.SelectedCodecWins.OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"  {item.Key}: {item.Value:N0}");
+                }
             }
 
             return CliExitCodes.Success;
@@ -128,6 +143,8 @@ public static class RepairCommand
         bool json = false;
         bool padLastSector = false;
         bool deepVerify = false;
+        bool codecReport = false;
+        int codecReportBlockLimit = 64;
         CsoCompressionProfile profile = CsoCompressionProfile.GameSafe;
 
         for (int index = 1; index < args.Length; index++)
@@ -205,6 +222,30 @@ public static class RepairCommand
                 continue;
             }
 
+            if (string.Equals(arg, "--codec-report", StringComparison.OrdinalIgnoreCase))
+            {
+                codecReport = true;
+                continue;
+            }
+
+            if (TryConsumeOptionValue(args, ref index, "--codec-report-block-limit", out string? codecReportBlockLimitValue, out errorMessage))
+            {
+                if (errorMessage is not null)
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(codecReportBlockLimitValue, out int parsedCodecReportBlockLimit) ||
+                    parsedCodecReportBlockLimit < 0)
+                {
+                    errorMessage = "--codec-report-block-limit must be zero or a positive integer.";
+                    return false;
+                }
+
+                codecReportBlockLimit = parsedCodecReportBlockLimit;
+                continue;
+            }
+
             if (string.Equals(arg, "--force", StringComparison.OrdinalIgnoreCase))
             {
                 force = true;
@@ -240,7 +281,9 @@ public static class RepairCommand
             json,
             profile,
             padLastSector,
-            DeepVerify: deepVerify || profile == CsoCompressionProfile.GameSafe);
+            DeepVerify: deepVerify || profile == CsoCompressionProfile.GameSafe,
+            CodecReport: codecReport,
+            CodecReportBlockLimit: codecReportBlockLimit);
 
         return true;
     }
@@ -260,8 +303,51 @@ public static class RepairCommand
             "ReDumpRequired" or "CorruptCompressedBlock" => CliExitCodes.DecompressionFailed,
             "UnsupportedContainer" => CliExitCodes.UnsupportedCsoVersion,
             "DiskSpacePreflightFailed" => CliExitCodes.NotEnoughDiskSpace,
+            "InvalidCodecReportBlockLimit" => CliExitCodes.InvalidArguments,
             _ => CliExitCodes.GeneralFailure,
         };
+    }
+
+    private static bool TryConsumeOptionValue(
+        string[] args,
+        ref int index,
+        string optionName,
+        out string? value,
+        out string? errorMessage)
+    {
+        value = null;
+        errorMessage = null;
+
+        string arg = args[index];
+
+        if (string.Equals(arg, optionName, StringComparison.OrdinalIgnoreCase))
+        {
+            if (index + 1 >= args.Length)
+            {
+                errorMessage = $"Missing value after {optionName}.";
+                return true;
+            }
+
+            value = args[index + 1];
+            index++;
+            return true;
+        }
+
+        string prefix = optionName + "=";
+
+        if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            value = arg[prefix.Length..];
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                errorMessage = $"Missing value after {optionName}.";
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private static string SafeFullPath(string path)
@@ -283,7 +369,7 @@ public static class RepairCommand
             Console.Error.WriteLine(errorMessage);
         }
 
-        Console.Error.WriteLine("Usage: hakamiq-cso repair <input.iso|input.cso> -o <output.cso> [--profile game-safe] [--repair pad-last-sector] [--deep-verify] [--force] [--json]");
+        Console.Error.WriteLine("Usage: hakamiq-cso repair <input.iso|input.cso> -o <output.cso> [--profile game-safe] [--repair pad-last-sector] [--deep-verify] [--codec-report] [--codec-report-block-limit <n>] [--force] [--json]");
     }
 
     private sealed record RepairCommandOptions(
@@ -293,5 +379,7 @@ public static class RepairCommand
         bool Json,
         CsoCompressionProfile Profile,
         bool PadLastSector,
-        bool DeepVerify);
+        bool DeepVerify,
+        bool CodecReport,
+        int CodecReportBlockLimit);
 }

@@ -93,7 +93,8 @@ public static class CompressCommand
                 options.BlockSize,
                 options.WorkerCount,
                 options.UseZopfli,
-                deepVerify: false));
+                deepVerify: false,
+                codecReportBlockLimit: options.CodecReportBlockLimit));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -171,7 +172,8 @@ public static class CompressCommand
                 options.WorkerCount,
                 options.UseZopfli,
                 options.DeepVerify,
-                options.CodecReport));
+                options.CodecReport,
+                options.CodecReportBlockLimit));
 
         progress?.FinishLine();
 
@@ -188,7 +190,8 @@ public static class CompressCommand
                 options.WorkerCount,
                 options.UseZopfli,
                 options.DeepVerify,
-                options.CodecReport));
+                options.CodecReport,
+                options.CodecReportBlockLimit));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -251,6 +254,7 @@ public static class CompressCommand
         bool useZopfli = false;
         bool deepVerify = false;
         bool codecReport = false;
+        int codecReportBlockLimit = 64;
         CsoCompressionProfile profile = CsoCompressionProfilePolicy.DefaultProfile;
 
         for (int index = 1; index < args.Length; index++)
@@ -329,6 +333,24 @@ public static class CompressCommand
             if (string.Equals(arg, "--codec-report", StringComparison.OrdinalIgnoreCase))
             {
                 codecReport = true;
+                continue;
+            }
+
+            if (TryConsumeOptionValue(args, ref index, "--codec-report-block-limit", out string? codecReportBlockLimitValue, out errorMessage))
+            {
+                if (errorMessage is not null)
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(codecReportBlockLimitValue, out int parsedCodecReportBlockLimit) ||
+                    parsedCodecReportBlockLimit < 0)
+                {
+                    errorMessage = "--codec-report-block-limit must be zero or a positive integer.";
+                    return false;
+                }
+
+                codecReportBlockLimit = parsedCodecReportBlockLimit;
                 continue;
             }
 
@@ -431,7 +453,8 @@ public static class CompressCommand
             workerCount,
             useZopfli,
             deepVerify || profile == CsoCompressionProfile.GameSafe,
-            codecReport);
+            codecReport,
+            codecReportBlockLimit);
 
         return true;
     }
@@ -530,7 +553,7 @@ public static class CompressCommand
             "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" or "InvalidInputSize" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "CompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InputAccessDenied" or "MeasureIoFailed" => CliExitCodes.CannotWriteOutput,
-            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" => CliExitCodes.InvalidCsoHeader,
+            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" or "InvalidCodecReportBlockLimit" => CliExitCodes.InvalidCsoHeader,
             _ => CliExitCodes.CompressionFailed
         };
     }
@@ -579,6 +602,11 @@ public static class CompressCommand
         writer.WriteLine($"Threads: {options.WorkerCount:N0}");
         writer.WriteLine($"Zopfli: {options.UseZopfli.ToString().ToLowerInvariant()}");
         writer.WriteLine($"Deep verify: {options.DeepVerify.ToString().ToLowerInvariant()}");
+
+        if (options.CodecReport)
+        {
+            writer.WriteLine($"Codec report block limit: {options.CodecReportBlockLimit:N0}");
+        }
     }
 
     private static void PrintCodecReport(IReadOnlyDictionary<string, int> codecWins)
@@ -598,7 +626,7 @@ public static class CompressCommand
             Console.Error.WriteLine(errorMessage);
         }
 
-        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--deep-verify] [--codec-report] [--force] [--quiet] [--json]");
+        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--deep-verify] [--codec-report] [--codec-report-block-limit <n>] [--force] [--quiet] [--json]");
         Console.Error.WriteLine($"       hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--block <bytes>] [--zopfli] [--quiet] [--json]");
     }
 
@@ -614,7 +642,8 @@ public static class CompressCommand
         int WorkerCount,
         bool UseZopfli,
         bool DeepVerify,
-        bool CodecReport);
+        bool CodecReport,
+        int CodecReportBlockLimit);
 
     private sealed class ConsoleCompressProgress : IProgress<CsoCompressProgress>
     {

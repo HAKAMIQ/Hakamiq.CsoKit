@@ -1,4 +1,4 @@
-# Hakamiq.CsoKit Release Scorecard — R3-C
+# Hakamiq.CsoKit Release Scorecard — R3-D
 
 ## Current status
 
@@ -9,7 +9,9 @@
 - Repair/normalize: PASS for streaming container repair to CSO1 output without a temporary ISO on the primary container path.
 - Corrupt refusal: PASS by tests for truncated or corrupt payloads that must not leave final output.
 - PSP ISO analysis: PASS for bounded PARAM.SFO and UMD_DATA.BIN metadata reads with warnings for missing/corrupt metadata.
-- JSON diagnostics: PASS for schema versioning and stable command/success/error fields across primary commands.
+- JSON diagnostics: PASS for schema versioning, stable command/success/error fields, and bounded codec report summaries.
+- Benchmark truth layer: PASS as an optional local script that writes JSON and Markdown reports without storing a corpus in Git.
+- Codec optimizer: PASS for bounded reports and fast-profile near-tie cost awareness; game-safe remains conservative.
 - Repository hygiene: PASS when `scripts/Test-RepoTextEncoding.ps1` and the forbidden-term scan are clean.
 - Native backend clarity: PASS by documentation and honest `native-info` availability reporting.
 
@@ -20,13 +22,16 @@
 - CSO1, CSO2, ZSO, and DAX container readers are exercised with safe byte patterns.
 - Repair tests assert streaming mode and no temporary ISO artifact.
 - PARAM.SFO tests cover valid, missing, corrupt, and DISC_ID mismatch cases.
+- Codec report tests assert aggregate summaries with bounded per-block retention.
+- Selector tests assert that fast can prefer a much cheaper near-tie while game-safe still picks the smallest valid candidate.
 
 ## Not proven yet
 
-- Broad real-world corpus quality requires the optional local corpus gate on privately owned files.
+- Broad real-world corpus quality requires the optional benchmark truth layer on privately owned files.
 - Raw compression ranking is not claimed without a controlled internal benchmark.
 - Native dependency availability depends on the local build/runtime environment.
 - Very large CSO1 outputs that require shifted indexes remain a deliberate safety refusal.
+- Additional output containers remain out of scope for the default path.
 
 ## Final gate checklist
 

@@ -18,6 +18,11 @@ public sealed class CsoRepairer
             return CsoRepairResult.Fail("InputNotFound", "Input file was not found.");
         }
 
+        if (options.CollectCodecReport && options.CodecReportBlockLimit < 0)
+        {
+            return CsoRepairResult.Fail("InvalidCodecReportBlockLimit", "Codec report block limit cannot be negative.");
+        }
+
         FormatDetectionResult format = new FormatDetector().Detect(options.InputPath);
 
         if (!format.Success)
@@ -104,6 +109,8 @@ public sealed class CsoRepairer
                 options.ForceOverwrite,
                 options.Profile,
                 options.DeepVerify,
+                options.CollectCodecReport,
+                options.CodecReportBlockLimit,
                 options.CancellationToken,
                 inputFormat: format.ToString(),
                 alignment.PaddingBytes);
@@ -171,6 +178,8 @@ public sealed class CsoRepairer
                 options.ForceOverwrite,
                 options.Profile,
                 options.DeepVerify,
+                options.CollectCodecReport,
+                options.CodecReportBlockLimit,
                 options.CancellationToken,
                 inputFormat: "RawIso",
                 alignment.PaddingBytes);
@@ -190,6 +199,8 @@ public sealed class CsoRepairer
         bool forceOverwrite,
         CsoCompressionProfile profile,
         bool deepVerify,
+        bool collectCodecReport,
+        int codecReportBlockLimit,
         CancellationToken cancellationToken,
         string inputFormat,
         long paddingBytes)
@@ -205,7 +216,9 @@ public sealed class CsoRepairer
                 Profile: profile,
                 WorkerCount: Math.Max(1, Environment.ProcessorCount),
                 UseZopfli: false,
-                DeepVerifyOutput: deepVerify));
+                DeepVerifyOutput: deepVerify,
+                CollectCodecReport: collectCodecReport,
+                CodecReportBlockLimit: codecReportBlockLimit));
 
         if (!compress.Success)
         {
@@ -221,7 +234,8 @@ public sealed class CsoRepairer
             compress.BytesWritten,
             paddingBytes,
             mode: "temp-iso-fallback",
-            usedTempIso: true);
+            usedTempIso: true,
+            codecTrialSummary: compress.CodecTrialSummary);
     }
 
     private static CsoRepairResult? CheckRepairScratchSpace(

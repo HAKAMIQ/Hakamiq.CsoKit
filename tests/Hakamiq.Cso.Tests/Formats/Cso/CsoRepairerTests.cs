@@ -46,6 +46,36 @@ public sealed class CsoRepairerTests
     }
 
     [Fact]
+    public void Repair_WithCodecReport_ReturnsBoundedTrialSummary()
+    {
+        byte[] original = new byte[4096];
+        string inputPath = CsoTestFileFactory.CreateTempZso(original);
+        string outputCsoPath = CreateTempPath(".codec-report.cso");
+
+        try
+        {
+            CsoRepairResult repair = new CsoRepairer().Repair(
+                new CsoRepairOptions(
+                    inputPath,
+                    outputCsoPath,
+                    ForceOverwrite: false,
+                    CollectCodecReport: true,
+                    CodecReportBlockLimit: 1));
+
+            Assert.True(repair.Success, repair.ErrorMessage);
+            Assert.NotNull(repair.CodecTrialSummary);
+            Assert.Equal(2, repair.CodecTrialSummary.BlocksReported);
+            Assert.Single(repair.CodecTrialSummary.Blocks);
+            Assert.NotEmpty(repair.CodecTrialSummary.CandidateAttempts);
+        }
+        finally
+        {
+            File.Delete(inputPath);
+            File.Delete(outputCsoPath);
+        }
+    }
+
+    [Fact]
     public void Repair_WithUnalignedIsoAndNoPadding_ReturnsIsoNotSectorAligned()
     {
         byte[] alignedIso = PspIsoValidatorTests.CreateMinimalPspIso(includeRequiredPaths: true);

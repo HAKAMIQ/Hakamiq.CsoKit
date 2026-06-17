@@ -72,6 +72,11 @@ public sealed class CsoCompressor
                 return CsoCompressResult.Fail("InvalidThreadCount", "Compression worker count must be greater than zero.");
             }
 
+            if (options.CollectCodecReport && options.CodecReportBlockLimit < 0)
+            {
+                return CsoCompressResult.Fail("InvalidCodecReportBlockLimit", "Codec report block limit cannot be negative.");
+            }
+
             if (options.UseZopfli && !NativeCsoRuntime.GetInfo().IsAvailable)
             {
                 return CsoCompressResult.Fail(
@@ -144,6 +149,7 @@ public sealed class CsoCompressor
                         options.WorkerCount,
                         options.UseZopfli,
                         options.CollectCodecReport,
+                        options.CodecReportBlockLimit,
                         cancellationToken,
                         options.Progress);
 
@@ -211,6 +217,7 @@ public sealed class CsoCompressor
         int workerCount,
         bool useZopfli,
         bool collectCodecReport,
+        int codecReportBlockLimit,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
@@ -228,6 +235,7 @@ public sealed class CsoCompressor
                 profile,
                 useZopfli,
                 collectCodecReport,
+                codecReportBlockLimit,
                 cancellationToken,
                 progress);
         }
@@ -243,6 +251,7 @@ public sealed class CsoCompressor
             effectiveWorkerCount,
             useZopfli,
             collectCodecReport,
+            codecReportBlockLimit,
             cancellationToken,
             progress);
     }
@@ -257,6 +266,7 @@ public sealed class CsoCompressor
         CsoCompressionProfile profile,
         bool useZopfli,
         bool collectCodecReport,
+        int codecReportBlockLimit,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
@@ -273,7 +283,9 @@ public sealed class CsoCompressor
         int compressedBlocks = 0;
         int storedBlocks = 0;
         Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
-        List<CodecTrialReport> trialReports = [];
+        CodecTrialSummaryBuilder? trialSummaryBuilder = collectCodecReport
+            ? new CodecTrialSummaryBuilder(codecReportBlockLimit)
+            : null;
 
         ReportProgress(progress, completedBlocks: 0, totalBlocks, totalRead, inputBytes);
 
@@ -311,7 +323,7 @@ public sealed class CsoCompressor
             }
 
             IncrementCodecWin(codecWins, sectorResult);
-            AddTrialReport(trialReports, sectorResult);
+            AddTrialReport(trialSummaryBuilder, sectorResult);
 
             totalRead += (ulong)read;
 
@@ -343,7 +355,7 @@ public sealed class CsoCompressor
             compressedBlocks,
             storedBlocks,
             codecWins,
-            BuildTrialSummary(trialReports, codecWins));
+            trialSummaryBuilder?.Build(codecWins));
     }
 
     private static CsoCompressResult CompressBlocksParallel(
@@ -357,6 +369,7 @@ public sealed class CsoCompressor
         int workerCount,
         bool useZopfli,
         bool collectCodecReport,
+        int codecReportBlockLimit,
         CancellationToken cancellationToken,
         IProgress<CsoCompressProgress>? progress)
     {
@@ -493,7 +506,9 @@ public sealed class CsoCompressor
         int compressedBlocks = 0;
         int storedBlocks = 0;
         Dictionary<string, int> codecWins = new(StringComparer.OrdinalIgnoreCase);
-        List<CodecTrialReport> trialReports = [];
+        CodecTrialSummaryBuilder? trialSummaryBuilder = collectCodecReport
+            ? new CodecTrialSummaryBuilder(codecReportBlockLimit)
+            : null;
 
         try
         {
@@ -549,7 +564,7 @@ public sealed class CsoCompressor
                 }
 
                 IncrementCodecWin(codecWins, nextResult);
-                AddTrialReport(trialReports, nextResult);
+                AddTrialReport(trialSummaryBuilder, nextResult);
 
                 totalWrittenSourceBytes += (ulong)nextResult.SourceLength;
                 nextBlockToWrite++;
@@ -584,7 +599,7 @@ public sealed class CsoCompressor
                 compressedBlocks,
                 storedBlocks,
                 codecWins,
-                BuildTrialSummary(trialReports, codecWins));
+                trialSummaryBuilder?.Build(codecWins));
         }
         finally
         {
@@ -595,46 +610,13 @@ public sealed class CsoCompressor
     }
 
     private static void AddTrialReport(
-        List<CodecTrialReport> reports,
+        CodecTrialSummaryBuilder? summaryBuilder,
         SectorResult result)
     {
         if (result.TrialReport is not null)
         {
-            reports.Add(result.TrialReport);
+            summaryBuilder?.Add(result.TrialReport);
         }
-    }
-
-    private static CodecTrialSummary? BuildTrialSummary(
-        IReadOnlyList<CodecTrialReport> reports,
-        IReadOnlyDictionary<string, int> codecWins)
-    {
-        if (reports.Count == 0)
-        {
-            return null;
-        }
-
-        Dictionary<string, int> rejectedReasons = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (CodecTrialReport report in reports)
-        {
-            foreach (CodecTrialCandidateResult candidate in report.Candidates)
-            {
-                if (string.IsNullOrWhiteSpace(candidate.RejectedReason))
-                {
-                    continue;
-                }
-
-                rejectedReasons[candidate.RejectedReason] = rejectedReasons.TryGetValue(candidate.RejectedReason, out int current)
-                    ? checked(current + 1)
-                    : 1;
-            }
-        }
-
-        return new CodecTrialSummary(
-            reports.Count,
-            reports.OrderBy(static report => report.BlockIndex).ToArray(),
-            new Dictionary<string, int>(codecWins, StringComparer.OrdinalIgnoreCase),
-            rejectedReasons);
     }
 
     private static void ThrowIfFailure(ExceptionDispatchInfo? failure)

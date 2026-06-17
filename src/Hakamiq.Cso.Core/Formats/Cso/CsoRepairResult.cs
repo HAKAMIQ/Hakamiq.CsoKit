@@ -1,3 +1,5 @@
+using Hakamiq.Cso.Core.Compression.Trials;
+
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed record CsoRepairResult(
@@ -10,7 +12,8 @@ public sealed record CsoRepairResult(
     long PaddingBytes,
     string Mode = "temp-iso-fallback",
     bool UsedTempIso = true,
-    string? FallbackReason = null)
+    string? FallbackReason = null,
+    CodecTrialSummary? CodecTrialSummary = null)
 {
     public static CsoRepairResult Ok(
         string inputFormat,
@@ -19,7 +22,8 @@ public sealed record CsoRepairResult(
         long paddingBytes,
         string mode = "temp-iso-fallback",
         bool usedTempIso = true,
-        string? fallbackReason = null)
+        string? fallbackReason = null,
+        CodecTrialSummary? codecTrialSummary = null)
     {
         return new CsoRepairResult(
             true,
@@ -31,7 +35,8 @@ public sealed record CsoRepairResult(
             paddingBytes,
             mode,
             usedTempIso,
-            fallbackReason);
+            fallbackReason,
+            codecTrialSummary);
     }
 
     public static CsoRepairResult Fail(
@@ -40,7 +45,8 @@ public sealed record CsoRepairResult(
         string inputFormat = "Unknown",
         string mode = "temp-iso-fallback",
         bool usedTempIso = true,
-        string? fallbackReason = null)
+        string? fallbackReason = null,
+        CodecTrialSummary? codecTrialSummary = null)
     {
         return new CsoRepairResult(
             false,
@@ -52,6 +58,7 @@ public sealed record CsoRepairResult(
             0,
             mode,
             usedTempIso,
-            fallbackReason);
+            fallbackReason,
+            codecTrialSummary);
     }
 }

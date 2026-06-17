@@ -66,9 +66,9 @@ public static class CsoCommandDispatcher
         Console.WriteLine("  hakamiq-cso analyze <input.iso> [--psp] [--json]");
         Console.WriteLine("  hakamiq-cso info <input.cso> [--json]");
         Console.WriteLine("  hakamiq-cso verify <input.cso> [--deep] [--sha256] [--json]");
-        Console.WriteLine("  hakamiq-cso repair <input.iso|input.cso> -o <output.cso> [--profile game-safe] [--repair pad-last-sector] [--deep-verify] [--force] [--json]");
+        Console.WriteLine("  hakamiq-cso repair <input.iso|input.cso> -o <output.cso> [--profile game-safe] [--repair pad-last-sector] [--deep-verify] [--codec-report] [--codec-report-block-limit <n>] [--force] [--json]");
         Console.WriteLine("  hakamiq-cso decompress <input.cso> [-o <output.iso>] [--force] [--quiet] [--json]");
-        Console.WriteLine($"  hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--deep-verify] [--codec-report] [--force] [--quiet] [--json]");
+        Console.WriteLine($"  hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--deep-verify] [--codec-report] [--codec-report-block-limit <n>] [--force] [--quiet] [--json]");
         Console.WriteLine($"  hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--block <bytes>] [--zopfli] [--quiet] [--json]");
         Console.WriteLine("  hakamiq-cso codecs");
         Console.WriteLine("  hakamiq-cso native-info");

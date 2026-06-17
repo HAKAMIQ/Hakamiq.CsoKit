@@ -15,7 +15,8 @@ public static class CsoCompressJsonContract
         int workerCount = 1,
         bool useZopfli = false,
         bool deepVerify = false,
-        bool codecReport = false)
+        bool codecReport = false,
+        int codecReportBlockLimit = 64)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -45,7 +46,8 @@ public static class CsoCompressJsonContract
                 blockSize,
                 workerCount,
                 useZopfli,
-                deepVerify),
+                deepVerify,
+                codecReportBlockLimit),
             new CsoMeasureJsonMetrics(
                 result.OriginalBytes,
                 result.EstimatedBytes,
@@ -69,7 +71,8 @@ public static class CsoCompressJsonContract
         int workerCount = 1,
         bool useZopfli = false,
         bool deepVerify = false,
-        bool codecReport = false)
+        bool codecReport = false,
+        int codecReportBlockLimit = 64)
     {
         ArgumentNullException.ThrowIfNull(profileSettings);
         ArgumentNullException.ThrowIfNull(result);
@@ -91,7 +94,8 @@ public static class CsoCompressJsonContract
                 workerCount,
                 useZopfli,
                 deepVerify,
-                codecReport
+                codecReport,
+                codecReportBlockLimit
             },
             new CsoCompressJsonOptions(
                 CsoProfileOutput.From(profileSettings),
@@ -100,7 +104,8 @@ public static class CsoCompressJsonContract
                 blockSize,
                 workerCount,
                 useZopfli,
-                deepVerify),
+                deepVerify,
+                codecReportBlockLimit),
             new CsoWriteJsonMetrics(
                 result.BytesRead,
                 result.BytesWritten,
@@ -141,7 +146,8 @@ public sealed record CsoCompressJsonOptions(
     uint BlockSize,
     int Threads,
     bool Zopfli,
-    bool DeepVerify);
+    bool DeepVerify,
+    int CodecReportBlockLimit = 64);
 
 public sealed record CsoMeasureJsonMetrics(
     ulong OriginalBytes,

@@ -77,6 +77,41 @@ public sealed class CsoCompressorTests
     }
 
     [Fact]
+    public void Compress_WithCodecReportLimit_RetainsBoundedBlockSampleAndFullSummary()
+    {
+        byte[] original = new byte[2048 * 5];
+
+        string isoPath = CreateTempPath(".iso");
+        string csoPath = CreateTempPath(".cso");
+
+        try
+        {
+            File.WriteAllBytes(isoPath, original);
+
+            CsoCompressor compressor = new();
+            CsoCompressResult result = compressor.Compress(
+                new CsoCompressOptions(
+                    isoPath,
+                    csoPath,
+                    ForceOverwrite: false,
+                    CollectCodecReport: true,
+                    CodecReportBlockLimit: 2));
+
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.NotNull(result.CodecTrialSummary);
+            Assert.Equal(5, result.CodecTrialSummary.BlocksReported);
+            Assert.Equal(2, result.CodecTrialSummary.Blocks.Count);
+            Assert.NotEmpty(result.CodecTrialSummary.CandidateAttempts);
+            Assert.Equal(5, result.CodecTrialSummary.SelectedCodecWins.Values.Sum());
+        }
+        finally
+        {
+            File.Delete(isoPath);
+            File.Delete(csoPath);
+        }
+    }
+
+    [Fact]
     public void Compress_WithParallelWorkersAndLargerBlockSize_CreatesRoundtrippableCso()
     {
         byte[] original = Enumerable.Range(0, 65536 + 123)

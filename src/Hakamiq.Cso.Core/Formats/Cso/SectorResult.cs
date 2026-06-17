@@ -12,7 +12,8 @@ public sealed record SectorResult(
     int Level,
     byte[] Buffer,
     string CodecName = "",
-    CodecTrialReport? TrialReport = null)
+    CodecTrialReport? TrialReport = null,
+    CodecTrialDecisionMetrics? DecisionMetrics = null)
 {
     public ReadOnlySpan<byte> OutputSpan => Buffer.AsSpan(0, OutputLength);
 
