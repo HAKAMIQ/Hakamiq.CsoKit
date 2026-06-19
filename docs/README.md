@@ -1,24 +1,24 @@
 # Documentation
 
-Start here if README.md was too short and you need the details.
+Start here when the main README is too short.
 
-## User-facing docs
+## User docs
 
-- CLI reference: CLI.md
+- [CLI reference](CLI.md) — commands, profiles, JSON output, repair behavior, and native options.
 
-## Build and release docs
+## Build and release
 
-- Native backend build notes: NATIVE_BUILD.md
-- 0.6.0 release gate notes: release/RELEASE_0_6_0_GATE.md
+- [Native build notes](NATIVE_BUILD.md) — when the native backend matters, and when managed-only is enough.
+- [0.6.0 release gate](release/RELEASE_0_6_0_GATE.md) — release validation notes for v0.6.0.
 
-## Archived engineering notes
+## Engineering archive
 
-These files are kept for project history and audit trail. You probably do not need them for normal use.
+Kept for history and audit trail. Most users will not need these.
 
-- Detailed fix notes: archive/CHANGELOG_FIX_NOTES.md
-- Architecture repair notes: archive/R1_ARCHITECTURE_REPAIR.md
-- R3-C release hardening: archive/R3C_RELEASE_HARDENING.md
-- Benchmark truth layer: archive/R3D_BENCHMARK_TRUTH.md
-- Real corpus evidence: archive/R3E_REAL_CORPUS_EVIDENCE.md
-- 0.5.0 scorecard: archive/RELEASE_0_5_0_SCORECARD.md
-- Release scorecard: archive/RELEASE_SCORECARD.md
+- [Detailed fix notes](archive/CHANGELOG_FIX_NOTES.md)
+- [Architecture repair notes](archive/R1_ARCHITECTURE_REPAIR.md)
+- [R3-C release hardening](archive/R3C_RELEASE_HARDENING.md)
+- [Benchmark truth layer](archive/R3D_BENCHMARK_TRUTH.md)
+- [Real corpus evidence](archive/R3E_REAL_CORPUS_EVIDENCE.md)
+- [0.5.0 scorecard](archive/RELEASE_0_5_0_SCORECARD.md)
+- [Release scorecard](archive/RELEASE_SCORECARD.md)
