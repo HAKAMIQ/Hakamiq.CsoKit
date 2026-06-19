@@ -1,12 +1,57 @@
 * text=auto
 
+# Repository metadata
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+
+# Documentation and config
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
-*.md text eol=lf
+*.xml text eol=lf
+
+# PowerShell scripts: Windows-friendly
 *.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# .NET / WPF
 *.cs text eol=crlf
 *.csproj text eol=crlf
+*.props text eol=crlf
+*.targets text eol=crlf
 *.slnx text eol=crlf
-*.txt text eol=lf
+*.xaml text eol=crlf
+*.resx text eol=crlf
+
+# Native / CMake
+*.c text eol=lf
 *.cpp text eol=lf
 *.h text eol=lf
+*.hpp text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+
+# Binary assets
+*.png binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.pdb binary
+*.zip binary
+*.nupkg binary
+
+# Disc/container images should never be normalized as text
+*.iso binary
+*.cso binary
+*.zso binary
+*.dax binary
+*.chd binary
+*.cue binary
+*.gdi binary
+*.nrg binary
+*.img binary
+*.pkg binary
