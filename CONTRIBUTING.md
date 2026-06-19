@@ -1,6 +1,6 @@
 # Contributor Guide
 
-These notes are for contributors and maintainers. If you only want to use the tool, start with README.md. For command-line details, see docs/CLI.md.
+These notes are for contributors and maintainers. If you only want to use the tool, start with [README.md](README.md). For command-line details, see [docs/CLI.md](docs/CLI.md).
 
 ## Ground rules
 
@@ -16,7 +16,7 @@ Run this before touching compression. It does a full ISO to CSO to ISO cycle and
 
     .\scripts\Run-RoundtripGate.ps1 -InputIso "D:\Games\PSP\game.iso"
 
-Add -KeepArtifacts only when something failed and you want to inspect the generated files.
+Add `-KeepArtifacts` only when something failed and you want to inspect the generated files.
 
 ## Profile matrix
 
@@ -28,7 +28,7 @@ To narrow the run:
 
     .\scripts\Run-ProfileRoundtripMatrix.ps1 -InputIso "D:\Games\PSP\game.iso" -Profiles game-safe,smallest,fast
 
-Use -KeepArtifacts when you need the intermediate CSO or restored ISO. Most of the time, you will not.
+Use `-KeepArtifacts` when you need the intermediate CSO or restored ISO. Most of the time, you will not.
 
 ## Release gate
 
@@ -44,11 +44,11 @@ That is fine for a quick pass. Not enough for final release confidence.
 
 ## Published EXE smoke
 
-This tests the published executable instead of dotnet run. Useful when the code works locally but packaging or runtime layout might be wrong.
+This tests the published executable instead of `dotnet run`. Useful when the code works locally but packaging or runtime layout might be wrong.
 
     .\scripts\Run-PublishedExeSmoke.ps1 -InputIso "D:\Games\PSP\game.iso"
 
-Use -SkipRealIsoGates for a fast packaging smoke.
+Use `-SkipRealIsoGates` for a fast packaging smoke.
 
 ## Final release gate
 
@@ -76,4 +76,6 @@ If you have a real PSP ISO available, add the optional corpus smoke:
 
     .\scripts\Run-OfficialReleaseGate.ps1 -Version 0.6.0 -Runtime win-x64 -InputIso "D:\Games\PSP\game.iso"
 
-If NuGet vulnerability metadata times out with NU1900, retry later. If you must validate while the audit feed is unavailable, use -SkipNuGetAudit and mention that in the release notes or gate summary.
+For a future release, replace `0.6.0` with the version you are publishing.
+
+If NuGet vulnerability metadata times out with `NU1900`, retry later. If you must validate while the audit feed is unavailable, use `-SkipNuGetAudit` and mention that in the release notes or gate summary.
