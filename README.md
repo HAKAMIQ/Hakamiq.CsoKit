@@ -1,26 +1,26 @@
 # Hakamiq CsoKit
 
-Hakamiq CsoKit is a Windows x64 PSP ISO/CSO toolkit with a command-line interface and a WPF desktop app.
+Hakamiq CsoKit is a Windows x64 toolkit for PSP ISO and CSO files. Use the desktop app for normal work, or the CLI when you want scripting and exact control.
 
 ## Download
 
-Download the latest Windows x64 package from the [Releases page](https://github.com/HAKAMIQ/Hakamiq.CsoKit/releases/latest):
+Grab the latest Windows x64 package from the [Releases page](https://github.com/HAKAMIQ/Hakamiq.CsoKit/releases/latest):
 
     hakamiq-csokit-*-win-x64.zip
 
-Extract the ZIP file to any folder. Keep Hakamiq.Cso.Native.dll next to the executables.
+Extract it anywhere. Keep `Hakamiq.Cso.Native.dll` next to the executables.
 
 ## Quick start
 
-Run the desktop app:
+Desktop app:
 
     .\Hakamiq.Cso.App.exe
 
-Run the command-line tool:
+CLI help:
 
     .\hakamiq-cso.exe --help
 
-Show the version:
+Version:
 
     .\hakamiq-cso.exe --version
 
@@ -34,7 +34,7 @@ Verify a CSO file:
 
     .\hakamiq-cso.exe verify ".\game.cso"
 
-Deep-verify a CSO file and calculate SHA256:
+Deep-verify and calculate SHA256:
 
     .\hakamiq-cso.exe verify ".\game.cso" --deep --sha256
 
@@ -50,7 +50,7 @@ Compress ISO to CSO:
 
     .\hakamiq-cso.exe compress ".\game.iso"
 
-Compress using the fast profile:
+Use the fast profile:
 
     .\hakamiq-cso.exe compress ".\game.iso" --profile fast
 
@@ -62,9 +62,9 @@ Repair or normalize readable input into CSO1:
 
     .\hakamiq-cso.exe repair ".\game.cso" -o ".\fixed.cso" --profile game-safe --deep-verify
 
-Profiles: game-safe (default), compat, fast, smallest, archive-smallest.
+Profiles: `game-safe` default, `compat`, `fast`, `smallest`, `archive-smallest`.
 
-For all CLI options, see [docs/CLI.md](docs/CLI.md).
+Full CLI reference: [docs/CLI.md](docs/CLI.md).
 
 ## Exit codes
 
@@ -87,10 +87,10 @@ For all CLI options, see [docs/CLI.md](docs/CLI.md).
 ## Limitations
 
 Hakamiq CsoKit focuses on PSP ISO/CSO workflows.
-ZSO, DAX, and CSO2 are supported as readable input containers, but CSO1 is the default output format.
-Verification checks structure; it does not guarantee emulator or device compatibility.
+ZSO, DAX, and CSO2 are readable input containers; CSO1 is the default output format.
+Verification checks file structure, not emulator or device compatibility.
 
 ## More documentation
 
-- CLI reference: [docs/CLI.md](docs/CLI.md)
-- Contributor scripts and release gates: [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CLI reference](docs/CLI.md)
+- [Contributor scripts and release gates](CONTRIBUTING.md)
