@@ -1,31 +1,39 @@
 # Third-Party Notices
 
-Hakamiq CsoKit includes third-party source code and statically linked native compression components.
+Hakamiq CsoKit uses a few third-party compression libraries in the native backend.
+
+These components are not owned by HAKAMIQ. Each one stays under its original license.
 
 ## zlib
 
 - Component: zlib compression library
-- Upstream project: https://github.com/madler/zlib
-- Build intake: CMake FetchContent, tag `v1.3.2`
+- Upstream: https://github.com/madler/zlib
+- Native build version: v1.3.2
 - License: zlib License
 
-zlib is used for raw-Deflate candidate trials with `Z_DEFAULT_STRATEGY`, `Z_FILTERED`, `Z_HUFFMAN_ONLY`, and `Z_RLE`.
+Hakamiq CsoKit uses zlib for raw-Deflate candidate trials, including default, filtered, Huffman-only, and RLE strategies.
 
 ## libdeflate
 
 - Component: libdeflate
-- Upstream project: https://github.com/ebiggers/libdeflate
-- Build intake: CMake FetchContent, tag `v1.25`
+- Upstream: https://github.com/ebiggers/libdeflate
+- Native build version: v1.25
 - License: MIT License
 
-libdeflate is used for raw-Deflate candidate trials at levels 1, 6, 9, and 12.
+Hakamiq CsoKit uses libdeflate for raw-Deflate candidate trials at several compression levels.
 
 ## Zopfli
 
 - Component: Zopfli Compression Algorithm
-- Upstream project: https://github.com/google/zopfli
-- Local source path: `native/third_party/zopfli`
+- Upstream: https://github.com/google/zopfli
+- Local source path: native/third_party/zopfli
 - License: Apache License, Version 2.0
-- Full license text: `native/third_party/zopfli/COPYING`
+- License file: native/third_party/zopfli/COPYING
 
-Zopfli is used only for explicit `--zopfli` raw-Deflate compression trials. Normal compression profiles remain available without asking the user to enable Zopfli.
+Zopfli is only used when `--zopfli` is explicitly requested. Normal compression profiles do not enable it automatically.
+
+## Notes
+
+The managed Deflate path remains available without the native backend.
+
+See LICENSE.txt for Hakamiq CsoKit license terms.
