@@ -1,92 +1,96 @@
 # Hakamiq CsoKit CLI Reference
 
-This file documents the command-line tool:
+This is the command-line reference for `hakamiq-cso.exe`.
 
-    hakamiq-cso.exe
+The desktop app is the easier path for normal use. The CLI is for scripting, automation, diagnostics, and cases where you want exact control over compression, repair, or verification.
 
-The desktop app is intended for common interactive workflows. The CLI is intended for scripts, automation, diagnostics, and advanced options.
+## Start here
 
-## Basic commands
-
-Show help:
+Print help:
 
     .\hakamiq-cso.exe --help
 
-Show version:
+Check the installed version:
 
     .\hakamiq-cso.exe --version
 
-Show native backend status:
+Check whether the native backend is available:
 
     .\hakamiq-cso.exe native-info
 
-List codec availability:
+List available codecs:
 
     .\hakamiq-cso.exe codecs
 
-## Info
+## Inspect a file
 
 Show CSO metadata:
 
     .\hakamiq-cso.exe info ".\game.cso"
 
-## Verify
+Detect the input format before doing anything else:
 
-Verify a CSO file:
+    .\hakamiq-cso.exe detect ".\game.iso"
+
+JSON is useful when another script needs to read the result:
+
+    .\hakamiq-cso.exe detect ".\game.cso" --json
+
+Detected formats include ISO, CSO1, CSO2, ZSO, DAX, and unknown input.
+
+## Analyze a PSP ISO
+
+Analyze checks PSP ISO structure without changing the file.
+
+    .\hakamiq-cso.exe analyze ".\game.iso" --psp
+
+For scripts:
+
+    .\hakamiq-cso.exe analyze ".\game.iso" --psp --json
+
+Run this before compression if you want a quick sanity check.
+
+## Verify CSO files
+
+Basic verification checks the container structure:
 
     .\hakamiq-cso.exe verify ".\game.cso"
 
-Run deep block verification:
+Deep verification reads compressed blocks and validates more of the file:
 
     .\hakamiq-cso.exe verify ".\game.cso" --deep
 
-Run deep verification and calculate SHA256:
+Add SHA256 when you need a stable hash for records or comparison:
 
     .\hakamiq-cso.exe verify ".\game.cso" --deep --sha256
 
-Return structured output:
+Machine-readable result:
 
     .\hakamiq-cso.exe verify ".\game.cso" --deep --sha256 --json
 
-## Detect
+## Compress ISO to CSO
 
-Detect supported container or image format:
-
-    .\hakamiq-cso.exe detect ".\game.iso"
-    .\hakamiq-cso.exe detect ".\game.cso" --json
-
-Supported detection includes ISO, CSO1, CSO2, ZSO, DAX, and unknown input.
-
-## Analyze
-
-Analyze PSP ISO structure without modifying files:
-
-    .\hakamiq-cso.exe analyze ".\game.iso" --psp
-    .\hakamiq-cso.exe analyze ".\game.iso" --psp --json
-
-## Compress
-
-Compress ISO to CSO:
+Default compression writes a CSO next to the ISO:
 
     .\hakamiq-cso.exe compress ".\game.iso"
 
-Use an explicit output file:
+Set the output path when you need a specific name:
 
     .\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso"
 
-Overwrite an existing output file:
+Overwrite only when you mean it:
 
     .\hakamiq-cso.exe compress ".\game.iso" -o ".\game.cso" --force
 
-Measure estimated CSO size without writing output:
+Estimate output size without writing a CSO:
 
     .\hakamiq-cso.exe compress ".\game.iso" --measure
 
-Use JSON output:
+For automation:
 
     .\hakamiq-cso.exe compress ".\game.iso" --profile fast --json
 
-## Compression profiles
+## Profiles
 
 Available profiles:
 
@@ -96,101 +100,97 @@ Available profiles:
     smallest
     archive-smallest
 
-The default profile is game-safe.
+`game-safe` is the default. It writes CSO1, keeps the default 2048-byte block size, uses raw Deflate candidates, and deep-verifies the output.
 
-game-safe writes CSO1, keeps the default block size at 2048 bytes, uses raw Deflate candidates, and enables deep verification after compression.
+`fast` is the quick path.
 
-fast is for speed.
+`smallest` tries harder candidates. It still does not enable Zopfli unless you ask for it.
 
-smallest tries stronger candidates but does not enable Zopfli unless --zopfli is explicit.
+`archive-smallest` is for experiments where size matters more than broad compatibility.
 
-archive-smallest is for archival experiments and may reduce compatibility when paired with larger block sizes.
-
-Use a profile:
+Pick a profile:
 
     .\hakamiq-cso.exe compress ".\game.iso" --profile fast
 
-The short alias is equivalent to --profile fast:
+Shortcut:
 
     .\hakamiq-cso.exe compress ".\game.iso" --fast
 
-Do not combine --fast with another explicit profile.
+Do not combine `--fast` with another explicit profile. Pick one.
 
-## Compression options
+## Compression tuning
 
-Set compression worker count:
+Threads:
 
     .\hakamiq-cso.exe compress ".\game.iso" --threads 8
 
-Set block size:
+Block size:
 
     .\hakamiq-cso.exe compress ".\game.iso" --block 16K
 
-Enable optional native Zopfli trials:
+Optional Zopfli trials:
 
     .\hakamiq-cso.exe compress ".\game.iso" --zopfli
 
-Print codec winner metrics:
+Codec winner report:
 
     .\hakamiq-cso.exe compress ".\game.iso" --codec-report
 
-Block size accepts byte values and K or M suffixes. It must be at least 2048 and must be a power of two. Larger blocks can improve compression but may reduce compatibility or increase random-read latency.
+Block size accepts raw bytes, `K`, or `M`. It must be at least 2048 and a power of two. Larger blocks can improve compression, but they may hurt compatibility or random-read behavior. For PSP safety, 2048 is still the sensible default.
 
-## Decompress
+## Decompress CSO to ISO
 
-Decompress CSO to ISO:
+Default output goes next to the CSO:
 
     .\hakamiq-cso.exe decompress ".\game.cso"
 
-Use an explicit output file:
+Choose an output path:
 
     .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso"
 
-Overwrite output:
+Overwrite intentionally:
 
     .\hakamiq-cso.exe decompress ".\game.cso" -o ".\game.iso" --force
 
-## Repair
+## Repair and normalize
 
-Repair or normalize readable input into game-safe CSO1:
+Repair is conservative. It rebuilds readable input into game-safe CSO1, but it does not invent missing data.
 
     .\hakamiq-cso.exe repair ".\game.cso" -o ".\fixed.cso" --profile game-safe --deep-verify
 
-Readable input can include ISO, CSO1, ZSO, DAX, and supported CSO2. Hakamiq CsoKit writes CSO1 by default.
+Readable input can include ISO, CSO1, ZSO, DAX, and supported CSO2. Output is CSO1 by default.
 
-Safe repair does not invent missing data. If a compressed block is corrupt or the source is incomplete, the command fails with a diagnosis such as ReDumpRequired and does not write a partial output file.
+If a compressed block is corrupt or the source is incomplete, the command fails with a diagnosis such as `ReDumpRequired`. Good. A broken game should not become a fake "fixed" file.
 
-Padding a non-2048-aligned ISO is only done when explicit repair behavior is requested.
+Padding a non-2048-aligned ISO only happens when explicit repair behavior is requested.
 
 ## Output naming
 
-If the default output already exists, Hakamiq CsoKit writes a safe converted name instead, then keeps counting upward.
-
-Example:
+If the default output already exists, Hakamiq CsoKit chooses a safe converted name:
 
     game.cso
     game - Hakamiq Converted.cso
     game - Hakamiq Converted 2.cso
 
-Hakamiq CsoKit does not create output folders automatically. If -o is used, the destination folder must already exist.
+With `-o`, the destination folder must already exist.
 
 ## Native backend
 
-The release package includes:
+Release packages include:
 
     Hakamiq.Cso.Native.dll
 
 Keep it next to the executables.
 
-Native zlib and libdeflate are used only as safe raw-Deflate candidates. The managed Deflate fallback remains available. The --zopfli option requires the native backend and remains opt-in.
+The native backend adds zlib and libdeflate raw-Deflate candidates. Managed Deflate remains the fallback. Zopfli is native-only and opt-in through `--zopfli`.
 
-Check native status:
+Quick check:
 
     .\hakamiq-cso.exe native-info
 
 ## JSON output
 
-Add --json when another program or script needs structured output.
+Add `--json` when another program needs structured output.
 
 Examples:
 
@@ -198,9 +198,9 @@ Examples:
     .\hakamiq-cso.exe verify ".\game.cso" --deep --sha256 --json
     .\hakamiq-cso.exe compress ".\game.iso" --measure --profile smallest --json
 
-Compression and measure JSON output includes schemaVersion, command, mode, success, options, metrics, and error when a command fails.
+Compression and measure JSON include `schemaVersion`, `command`, `mode`, `success`, `options`, `metrics`, and `error` when the command fails.
 
-Example profile object:
+Profile object example:
 
     {
       "profile": {
@@ -210,14 +210,14 @@ Example profile object:
       }
     }
 
-Invalid profile values return a clear argument error. Conflicting profile options return the same argument error contract in JSON mode and a concise message in text mode.
+Invalid profile values return a clear argument error. Conflicting profile options use the same contract in JSON mode and a short message in text mode.
 
 ## Checksums
 
-SHA256SUMS.txt is included in release packages.
+Release packages include `SHA256SUMS.txt`.
 
-Use it to check that downloaded release files were not changed or corrupted after release.
+Use it when you want to confirm the downloaded files are unchanged.
 
 ## Third-party notices
 
-THIRD_PARTY_NOTICES.md documents third-party native compression components and licenses, including Zopfli, zlib, and libdeflate.
+`THIRD_PARTY_NOTICES.md` lists native compression components and licenses, including Zopfli, zlib, and libdeflate.
