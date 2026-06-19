@@ -4,7 +4,7 @@ Hakamiq CsoKit is a Windows x64 PSP ISO/CSO toolkit with a command-line interfac
 
 ## Download
 
-Download the latest Windows x64 package from the Releases page:
+Download the latest Windows x64 package from the [Releases page](https://github.com/HAKAMIQ/Hakamiq.CsoKit/releases/latest):
 
     hakamiq-csokit-*-win-x64.zip
 
@@ -62,9 +62,9 @@ Repair or normalize readable input into CSO1:
 
     .\hakamiq-cso.exe repair ".\game.cso" -o ".\fixed.cso" --profile game-safe --deep-verify
 
-Profiles: game-safe default, compat, fast, smallest, archive-smallest.
+Profiles: game-safe (default), compat, fast, smallest, archive-smallest.
 
-For all CLI options, see docs/CLI.md.
+For all CLI options, see [docs/CLI.md](docs/CLI.md).
 
 ## Exit codes
 
@@ -92,5 +92,5 @@ Verification checks structure; it does not guarantee emulator or device compatib
 
 ## More documentation
 
-- CLI reference: docs/CLI.md
-- Contributor scripts and release gates: CONTRIBUTING.md
+- CLI reference: [docs/CLI.md](docs/CLI.md)
+- Contributor scripts and release gates: [CONTRIBUTING.md](CONTRIBUTING.md)
