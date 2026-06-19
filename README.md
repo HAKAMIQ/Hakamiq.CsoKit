@@ -1,68 +1,65 @@
 # Hakamiq CsoKit
 
-Hakamiq CsoKit is a Windows x64 command-line tool for PSP CSO files.
+Hakamiq CsoKit is a Windows x64 PSP ISO/CSO toolkit with both a command-line interface and a WPF desktop app.
 
 It can detect disc image containers, analyze PSP ISO structure, inspect CSO files, deep-verify CSO blocks, safely repair readable ISO/CSO1/ZSO/DAX/CSO2 input into game-safe CSO1, decompress CSO files back to ISO, and compress ISO files to CSO.
 
 ## Current support
 
-* CSO decompression
-* ISO to CSO compression
-* CSO info, shallow verification, and deep block verification
-* PSP ISO structure analysis without modifying game files
-* Safe repair/normalize for readable ISO, CSO1, ZSO, DAX, and supported CSO2 input
-* Format detection for ISO, CSO1, CSO2, ZSO, DAX, and unknown input
-* ISO compression measurement without writing an output file
-* Same-folder default output naming without creating output folders
-* Compression profiles: `game-safe`, `compat`, `fast`, `smallest`, and `archive-smallest`
-* Multi-candidate raw Deflate trial engine with in-memory roundtrip verification
-* Configurable compression threads and CSO block size
-* Native zlib and libdeflate raw-Deflate candidates when the native DLL is available
-* Optional native Zopfli Deflate trials with `--zopfli`
-* Progress output
-* Safe Ctrl+C cancellation
-* JSON output for scripts and integrations
+- WPF desktop app for common ISO/CSO workflows.
+- CLI for scripting, automation, and advanced diagnostics.
+- CSO decompression.
+- ISO to CSO compression.
+- CSO info, shallow verification, and deep block verification.
+- Raw ISO deep verification.
+- PSP ISO structure analysis without modifying game files.
+- Safe repair/normalize for readable ISO, CSO1, ZSO, DAX, and supported CSO2 input.
+- Format detection for ISO, CSO1, CSO2, ZSO, DAX, and unknown input.
+- ISO compression measurement without writing an output file.
+- Same-folder default output naming without creating output folders.
+- Compression profiles: game-safe, compat, fast, smallest, and archive-smallest.
+- Multi-candidate raw Deflate trial engine with in-memory roundtrip verification.
+- Configurable compression threads and CSO block size.
+- Native zlib and libdeflate raw-Deflate candidates when the native DLL is available.
+- Optional native Zopfli Deflate trials with --zopfli.
+- Progress output.
+- Safe Ctrl+C cancellation.
+- JSON output for scripts and integrations.
 
 ## Download
 
-Download the latest package from the Releases page:
+Download the latest Windows x64 package from the Releases page:
 
-```text
-hakamiq-csokit-*-win-x64.zip
-```
+    hakamiq-csokit-*-win-x64.zip
 
 Extract the ZIP file to any folder.
 
-The extracted folder should include:
+The extracted folder includes the command-line executable, desktop app executable, native backend DLL, and release documentation:
 
-```text
-hakamiq-cso.exe
-Hakamiq.Cso.Native.dll
-README.md
-LICENSE.txt
-RELEASE_NOTES.md
-THIRD_PARTY_NOTICES.md
-SHA256SUMS.txt
-```
+    hakamiq-cso.exe
+    Hakamiq.Cso.App.exe
+    Hakamiq.Cso.Native.dll
+    README.md
+    LICENSE.txt
+    RELEASE_NOTES.md
+    THIRD_PARTY_NOTICES.md
+    SHA256SUMS.txt
 
-Keep `Hakamiq.Cso.Native.dll` next to `hakamiq-cso.exe`.
+Keep Hakamiq.Cso.Native.dll next to the executables.
 
 ## Quick start
 
-Open PowerShell in the extracted folder and run:
+For the desktop app, run:
 
-```powershell
-.\hakamiq-cso.exe --help
-```
+    .\Hakamiq.Cso.App.exe
 
-Hakamiq CsoKit is a command-line tool, not a double-click desktop app.
+For the command-line tool, open PowerShell in the extracted folder and run:
+
+    .\hakamiq-cso.exe --help
 
 ## Version
 
-```powershell
-.\hakamiq-cso.exe --version
-```
-
+    .\hakamiq-cso.exe --version
 ## Commands
 
 Show CSO information:
