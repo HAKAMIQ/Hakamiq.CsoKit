@@ -1,28 +1,48 @@
 # Native Build Notes
 
-The managed CLI remains the safe fallback path. A missing native backend must not break managed detect, analyze, verify, repair, decompress, or compress flows.
+Hakamiq CsoKit does not require the native backend to function.
 
-## Online build
+The managed path stays available for detect, analyze, verify, repair, decompress, and compress. Native code only adds extra raw-Deflate candidates such as zlib, libdeflate, and optional Zopfli.
 
-The native project may need network access during first configure when CMake resolves zlib or libdeflate through FetchContent or equivalent dependency acquisition. Run:
+If the native DLL is missing, the CLI should say so clearly and keep working. No fake availability. No silent fallback that pretends native compression is active.
 
-```powershell
-scripts/Build-Native.ps1 -Configuration Release -Platform x64
-hakamiq-cso native-info
-```
+## Build the native backend
 
-`native-info` must report availability honestly for zlib, libdeflate, Zopfli, and any unavailable native codec.
+Run this when you want the full release layout or when you are testing native codec behavior:
 
-## Offline limitation
+    .\scripts\Build-Native.ps1 -Configuration Release -Platform x64
 
-A fully offline native configure is not guaranteed unless dependencies are already cached or supplied by the developer environment. If native configure fails due to network/dependency resolution, use the managed-only CLI path and keep native availability reported as unavailable rather than pretending a backend exists.
+Then check what the CLI can actually see:
+
+    .\hakamiq-cso.exe native-info
+
+The report should be honest about zlib, libdeflate, Zopfli, and anything unavailable.
+
+## Online dependency resolution
+
+The first native configure may need network access. CMake can resolve dependencies such as zlib or libdeflate through FetchContent or an equivalent setup.
+
+If that fails because the machine is offline, do not patch around it by hardcoding success. Use the managed-only path instead. Simple.
 
 ## Managed-only workflow
 
-```powershell
-dotnet build Hakamiq.CsoKit.slnx --no-restore
-dotnet test Hakamiq.CsoKit.slnx --no-build --no-restore
-hakamiq-cso native-info
-```
+This is enough for normal .NET validation when native dependencies are not available:
 
-Managed Deflate, container decode, PSP ISO analysis, JSON diagnostics, and repair safety remain available without the native DLL.
+    dotnet build Hakamiq.CsoKit.slnx --no-restore
+    dotnet test Hakamiq.CsoKit.slnx --no-build --no-restore
+    .\hakamiq-cso.exe native-info
+
+Managed Deflate, container decoding, PSP ISO analysis, JSON diagnostics, and repair safety should still work without Hakamiq.Cso.Native.dll.
+
+## Release expectation
+
+Release packages should include:
+
+    Hakamiq.Cso.Native.dll
+
+Keep it next to:
+
+    hakamiq-cso.exe
+    Hakamiq.Cso.App.exe
+
+If native-info says unavailable in a release package, check the published ZIP layout first. Most native problems are packaging problems, not compression bugs.
