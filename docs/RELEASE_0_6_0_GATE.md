@@ -25,3 +25,10 @@ If NuGet vulnerability metadata times out with `NU1900`, rerun later or use:
 ```
 
 Using `-SkipNuGetAudit` means the release is not security-audited by NuGet vulnerability metadata in that run.
+
+
+## Real-corpus policy
+
+`Run-OfficialReleaseGate.ps1` does not require a developer-specific game path. The default gate is portable and runs build, tests, publish, CLI smoke, and packaging.
+
+Use `-InputIso <path>` only as an optional local real-corpus smoke test. This path must never be documented as a user requirement and should not be uploaded in release summaries.

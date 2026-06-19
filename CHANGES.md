@@ -20,3 +20,10 @@
 
 ## Release notes
 - Added `RELEASE_NOTES.md` for the 0.6.0 release.
+
+
+## Stability polish before release
+- Made the official release gate portable by default; real ISO smoke is now optional instead of requiring a developer-specific game path.
+- Clarified that Raw ISO support remains covered by automated tests when no real corpus path is provided.
+- Improved WPF operation labels: Compress to CSO / Decompress to ISO in English and Arabic equivalents.
+- Increased WPF output-change button width and right panel minimum width to prevent clipped text.

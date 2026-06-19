@@ -264,7 +264,7 @@ function Invoke-RawIsoDeepVerifySmoke {
     )
 
     if ([string]::IsNullOrWhiteSpace($IsoPath)) {
-        throw "InputIso is required for raw ISO deep verify smoke unless -SkipRealIsoGate is used."
+        throw "InputIso was not provided. This function is for optional real-corpus smoke only."
     }
 
     $resolved = Resolve-Path -LiteralPath $IsoPath -ErrorAction Stop
@@ -286,6 +286,14 @@ function Invoke-RawIsoDeepVerifySmoke {
         Write-Host $jsonText
         throw "Raw ISO deep verify smoke returned unexpected format: $($json.format)"
     }
+}
+
+function Test-ShouldRunRealIsoGate {
+    if ($SkipRealIsoGate) {
+        return $false
+    }
+
+    return -not [string]::IsNullOrWhiteSpace($InputIso)
 }
 
 if ($Runtime -ne "win-x64") {
@@ -313,7 +321,7 @@ Write-Host "Repo:       $RepoRoot"
 Write-Host "Version:    $Version"
 Write-Host "Runtime:    $Runtime"
 Write-Host "NuGetAudit: $(if ($SkipNuGetAudit) { 'disabled by request' } else { 'enabled' })"
-Write-Host "Real ISO:   $(if ($SkipRealIsoGate) { 'skipped' } else { $InputIso })"
+Write-Host "Real ISO:   $(if (Test-ShouldRunRealIsoGate) { $InputIso } else { 'not provided; optional real-corpus smoke skipped' })"
 Write-Host ""
 
 Assert-ProjectVersion -ProjectPath $CoreProject -ExpectedVersion $Version -Name "Core"
@@ -385,7 +393,7 @@ Invoke-Step "CLI smoke" {
     Invoke-CliSmoke -ExePath (Join-Path $CliPublishDir "hakamiq-cso.exe")
 }
 
-if (-not $SkipRealIsoGate) {
+if (Test-ShouldRunRealIsoGate) {
     Invoke-Step "Raw ISO deep verify smoke" {
         Invoke-RawIsoDeepVerifySmoke -ExePath (Join-Path $CliPublishDir "hakamiq-cso.exe") -IsoPath $InputIso
     }
@@ -393,6 +401,8 @@ if (-not $SkipRealIsoGate) {
 else {
     Write-Host ""
     Write-Host "[Raw ISO deep verify smoke] SKIPPED"
+    Write-Host "Reason: no -InputIso was provided, or -SkipRealIsoGate was used."
+    Write-Host "Coverage: Raw ISO deep verification is still covered by unit/CLI contract tests in dotnet test."
 }
 
 Invoke-Step "create release ZIPs" {
@@ -410,7 +420,7 @@ $summaryPath = Join-Path $ReleaseRoot "RELEASE_GATE_SUMMARY.txt"
     "CLI ZIP: $CliZip",
     "App ZIP: $AppZip",
     "NuGetAudit: $(if ($SkipNuGetAudit) { 'disabled by request' } else { 'enabled' })",
-    "Raw ISO gate: $(if ($SkipRealIsoGate) { 'skipped' } else { 'passed' })"
+    "Raw ISO real-corpus gate: $(if (Test-ShouldRunRealIsoGate) { 'passed' } else { 'skipped' })"
 ) | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 
 Write-Host ""

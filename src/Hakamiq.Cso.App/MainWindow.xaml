@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{Binding Text.WindowTitle, Mode=OneWay, FallbackValue=Hakamiq CsoKit}"
         Icon="Assets/Icons/hakamiq.ico"
-        Width="780"
+        Width="840"
         Height="460"
-        MinWidth="740"
+        MinWidth="800"
         MinHeight="420"
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
@@ -375,7 +375,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="2*" MinWidth="330" />
             <ColumnDefinition Width="8" />
-            <ColumnDefinition Width="*" MinWidth="200" />
+            <ColumnDefinition Width="*" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Row="0"
@@ -516,7 +516,7 @@
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
 
-                    <RadioButton Content="{Binding Text.CompactCompress, Mode=OneWay, FallbackValue=ضغط CSO}"
+                    <RadioButton Content="{Binding Text.CompactCompress, Mode=OneWay, FallbackValue=ضغط إلى CSO}"
                                  Tag="Compress"
                                  GroupName="Operation"
                                  IsChecked="True"
@@ -524,7 +524,7 @@
                                  Style="{StaticResource OperationRadioStyle}"
                                  Checked="OperationRadioButton_Checked" />
 
-                    <RadioButton Content="{Binding Text.CompactDecompress, Mode=OneWay, FallbackValue=فك ISO}"
+                    <RadioButton Content="{Binding Text.CompactDecompress, Mode=OneWay, FallbackValue=فك إلى ISO}"
                                  Tag="Decompress"
                                  GroupName="Operation"
                                  IsEnabled="{Binding CanEdit, Mode=OneWay}"
@@ -553,7 +553,7 @@
                     <DockPanel Margin="0,6,0,10">
                         <Button x:Name="ChangeOutputButton"
                                 Content="{Binding Text.ChangeOutput, Mode=OneWay, FallbackValue=تغيير}"
-                                Width="56"
+                                MinWidth="86"
                                 DockPanel.Dock="Right"
                                 Style="{StaticResource ButtonStyle}"
                                 IsEnabled="{Binding CanBrowseOutput, Mode=OneWay}"
