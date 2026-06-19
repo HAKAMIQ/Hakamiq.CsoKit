@@ -19,26 +19,36 @@ internal static class Lz4BlockDecoder
 
                 if (!TryReadExtendedLength(input, ref inputOffset, ref literalLength))
                 {
+                    bytesWritten = 0;
                     return false;
                 }
 
                 if (literalLength > input.Length - inputOffset ||
                     literalLength > output.Length - bytesWritten)
                 {
+                    bytesWritten = 0;
                     return false;
                 }
 
-                input.Slice(inputOffset, literalLength).CopyTo(output[bytesWritten..]);
+                input.Slice(inputOffset, literalLength).CopyTo(output.Slice(bytesWritten, literalLength));
                 inputOffset += literalLength;
                 bytesWritten += literalLength;
 
                 if (inputOffset == input.Length || bytesWritten == output.Length)
                 {
-                    return bytesWritten == output.Length && HasOnlyZeroPadding(input[inputOffset..]);
+                    bool success = bytesWritten == output.Length && HasOnlyZeroPadding(input[inputOffset..]);
+
+                    if (!success)
+                    {
+                        bytesWritten = 0;
+                    }
+
+                    return success;
                 }
 
                 if (input.Length - inputOffset < 2)
                 {
+                    bytesWritten = 0;
                     return false;
                 }
 
@@ -47,13 +57,16 @@ internal static class Lz4BlockDecoder
 
                 if (matchOffset == 0 || matchOffset > bytesWritten)
                 {
+                    bytesWritten = 0;
                     return false;
                 }
 
                 int matchLength = token & 0x0F;
 
-                if (!TryReadExtendedLength(input, ref inputOffset, ref matchLength))
+                if (!TryReadExtendedLength(input, ref inputOffset, ref matchLength) ||
+                    matchLength > int.MaxValue - 4)
                 {
+                    bytesWritten = 0;
                     return false;
                 }
 
@@ -61,18 +74,26 @@ internal static class Lz4BlockDecoder
 
                 if (matchLength > output.Length - bytesWritten)
                 {
+                    bytesWritten = 0;
                     return false;
                 }
 
                 int copyFrom = bytesWritten - matchOffset;
 
-                for (int i = 0; i < matchLength; i++)
+                for (int index = 0; index < matchLength; index++)
                 {
-                    output[bytesWritten++] = output[copyFrom + i];
+                    output[bytesWritten++] = output[copyFrom + index];
                 }
             }
 
-            return bytesWritten == output.Length && HasOnlyZeroPadding(input[inputOffset..]);
+            bool decoded = bytesWritten == output.Length && HasOnlyZeroPadding(input[inputOffset..]);
+
+            if (!decoded)
+            {
+                bytesWritten = 0;
+            }
+
+            return decoded;
         }
         catch (IndexOutOfRangeException)
         {
@@ -94,7 +115,13 @@ internal static class Lz4BlockDecoder
         while (inputOffset < input.Length)
         {
             byte value = input[inputOffset++];
-            length = checked(length + value);
+
+            if (length > int.MaxValue - value)
+            {
+                return false;
+            }
+
+            length += value;
 
             if (value != 255)
             {

@@ -12,9 +12,15 @@ public static class NativeCsoRuntime
 
     static NativeCsoRuntime()
     {
-        NativeLibrary.SetDllImportResolver(
-            typeof(NativeCsoRuntime).Assembly,
-            ResolveNativeLibrary);
+        try
+        {
+            NativeLibrary.SetDllImportResolver(
+                typeof(NativeCsoRuntime).Assembly,
+                ResolveNativeLibrary);
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     public static NativeCsoRuntimeInfo GetInfo()
@@ -27,6 +33,7 @@ public static class NativeCsoRuntime
         try
         {
             int probe = NativeMethods.hakamiq_cso_native_probe();
+
             if (probe != NativeStatusOk)
             {
                 return CreateManagedFallback($"Native probe failed with status {probe}.");
@@ -57,6 +64,10 @@ public static class NativeCsoRuntime
             return CreateManagedFallback(ex.Message);
         }
         catch (BadImageFormatException ex)
+        {
+            return CreateManagedFallback(ex.Message);
+        }
+        catch (InvalidOperationException ex)
         {
             return CreateManagedFallback(ex.Message);
         }
@@ -104,6 +115,11 @@ public static class NativeCsoRuntime
 
             int compressedLength = checked((int)rawOutputSize);
 
+            if (compressedLength <= 0)
+            {
+                return false;
+            }
+
             if (compressedLength != outputBuffer.Length)
             {
                 Array.Resize(ref outputBuffer, compressedLength);
@@ -121,6 +137,10 @@ public static class NativeCsoRuntime
             return false;
         }
         catch (BadImageFormatException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
         {
             return false;
         }
@@ -194,6 +214,10 @@ public static class NativeCsoRuntime
         {
             return false;
         }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public static bool TryInflateRaw(
@@ -254,6 +278,10 @@ public static class NativeCsoRuntime
         {
             return false;
         }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public static NativeCsoCapabilities GetCapabilities()
@@ -293,11 +321,15 @@ public static class NativeCsoRuntime
         {
             return NativeCsoCapabilities.ManagedFallback;
         }
+        catch (InvalidOperationException)
+        {
+            return NativeCsoCapabilities.ManagedFallback;
+        }
     }
 
     public static bool IsDisabledByEnvironment()
     {
-        string? value = Environment.GetEnvironmentVariable(DisableNativeEnvironmentVariable);
+        string? value = Environment.GetEnvironmentVariable(DisableNativeEnvironmentVariable)?.Trim();
 
         return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
@@ -324,8 +356,8 @@ public static class NativeCsoRuntime
 
     private static IntPtr ResolveNativeLibrary(
         string libraryName,
-        System.Reflection.Assembly assembly,
-        DllImportSearchPath? searchPath)
+        System.Reflection.Assembly _,
+        DllImportSearchPath? __)
     {
         if (!string.Equals(libraryName, LibraryName, StringComparison.Ordinal))
         {
@@ -334,9 +366,9 @@ public static class NativeCsoRuntime
 
         foreach (string candidate in EnumerateNativeLibraryCandidates())
         {
-            if (File.Exists(candidate))
+            if (NativeLibrary.TryLoad(candidate, out IntPtr handle))
             {
-                return NativeLibrary.Load(candidate);
+                return handle;
             }
         }
 
@@ -351,12 +383,24 @@ public static class NativeCsoRuntime
                 ? $"lib{LibraryName}.dylib"
                 : $"lib{LibraryName}.so";
 
-        foreach (string root in EnumerateAncestorDirectories(AppContext.BaseDirectory)
-            .Concat(EnumerateAncestorDirectories(Environment.CurrentDirectory))
-            .Distinct(StringComparer.OrdinalIgnoreCase))
+        HashSet<string> visitedRoots = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string root in EnumerateAncestorDirectories(AppContext.BaseDirectory))
         {
-            yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Release", fileName);
-            yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Debug", fileName);
+            if (visitedRoots.Add(root))
+            {
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Release", fileName);
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Debug", fileName);
+            }
+        }
+
+        foreach (string root in EnumerateAncestorDirectories(Environment.CurrentDirectory))
+        {
+            if (visitedRoots.Add(root))
+            {
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Release", fileName);
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Debug", fileName);
+            }
         }
 
         yield return Path.Combine(AppContext.BaseDirectory, fileName);
@@ -365,7 +409,16 @@ public static class NativeCsoRuntime
 
     private static IEnumerable<string> EnumerateAncestorDirectories(string start)
     {
-        DirectoryInfo? current = new DirectoryInfo(Path.GetFullPath(start));
+        DirectoryInfo? current;
+
+        try
+        {
+            current = new DirectoryInfo(Path.GetFullPath(start));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            yield break;
+        }
 
         while (current is not null)
         {
@@ -385,6 +438,7 @@ public static class NativeCsoRuntime
         public uint HasLz4;
     }
 
+#pragma warning disable SYSLIB1054
     private static class NativeMethods
     {
         [DllImport(LibraryName, ExactSpelling = true)]
@@ -426,4 +480,5 @@ public static class NativeCsoRuntime
             UIntPtr outputCapacity,
             out UIntPtr outputSize);
     }
+#pragma warning restore SYSLIB1054
 }

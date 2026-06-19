@@ -10,10 +10,7 @@ public sealed class CodecTrialSummaryBuilder
 
     public CodecTrialSummaryBuilder(int retainedBlockLimit)
     {
-        if (retainedBlockLimit < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(retainedBlockLimit), "Codec report block limit cannot be negative.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(retainedBlockLimit);
 
         this.retainedBlockLimit = retainedBlockLimit;
     }
@@ -49,9 +46,13 @@ public sealed class CodecTrialSummaryBuilder
             return null;
         }
 
+        CodecTrialReport[] retained = new CodecTrialReport[retainedBlocks.Count];
+        retainedBlocks.CopyTo(retained);
+        Array.Sort(retained, static (left, right) => left.BlockIndex.CompareTo(right.BlockIndex));
+
         return new CodecTrialSummary(
             blocksReported,
-            retainedBlocks.OrderBy(static report => report.BlockIndex).ToArray(),
+            retained,
             new Dictionary<string, int>(selectedCodecWins, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, int>(rejectedReasons, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, int>(candidateAttempts, StringComparer.OrdinalIgnoreCase));

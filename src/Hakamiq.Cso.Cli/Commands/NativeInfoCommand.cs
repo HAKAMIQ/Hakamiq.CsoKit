@@ -29,7 +29,7 @@ internal static class NativeInfoCommand
         Console.WriteLine($"  Native Zopfli: {Availability(capabilities.HasZopfli)}");
         Console.WriteLine($"  Native 7z-deflate: {SevenZipDeflateAvailability(capabilities.HasSevenZipDeflate)}");
         Console.WriteLine("  Managed LZ4 decode: available");
-        Console.WriteLine("  Native LZ4 decode: unavailable");
+        Console.WriteLine($"  Native LZ4 decode: {Availability(capabilities.HasLz4)}");
         Console.WriteLine("  LZ4 encode: unavailable");
 
         return CliExitCodes.Success;

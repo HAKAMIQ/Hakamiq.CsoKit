@@ -16,7 +16,7 @@ public sealed class PspIsoValidatorTests
         {
             File.WriteAllBytes(isoPath, CreateMinimalPspIso(includeRequiredPaths: true));
 
-            PspIsoValidationResult result = new PspIsoValidator().Validate(isoPath);
+            PspIsoValidationResult result = PspIsoValidator.Validate(isoPath);
 
             Assert.True(result.Success);
             Assert.True(result.HasIso9660PrimaryVolumeDescriptor);
@@ -39,7 +39,7 @@ public sealed class PspIsoValidatorTests
         {
             File.WriteAllBytes(isoPath, CreateMinimalPspIso(includeRequiredPaths: false));
 
-            PspIsoValidationResult result = new PspIsoValidator().Validate(isoPath);
+            PspIsoValidationResult result = PspIsoValidator.Validate(isoPath);
 
             Assert.False(result.Success);
             Assert.Contains(result.Issues, issue => issue.Code == "MissingUmdDataBin");
@@ -62,7 +62,7 @@ public sealed class PspIsoValidatorTests
         {
             File.WriteAllBytes(isoPath, [1, 2, 3]);
 
-            PspIsoValidationResult result = new PspIsoValidator().Validate(isoPath);
+            PspIsoValidationResult result = PspIsoValidator.Validate(isoPath);
 
             Assert.False(result.Success);
             Assert.Contains(result.Issues, issue => issue.Code == "IsoNotSectorAligned");

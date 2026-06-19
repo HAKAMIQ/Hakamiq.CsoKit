@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Hakamiq.Cso.Core.Formats.Containers;
 using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Tests.Fixtures;
 
 namespace Hakamiq.Cso.Tests.Formats.Cso;
 
@@ -9,17 +10,15 @@ public sealed class ContainerDeepVerifierTests
     [Fact]
     public void Verify_WithCso2Lz4_DoesNotUseCso1StoredFlagSemantics()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096, 251, invert: false);
         string path = CsoTestFileFactory.CreateTempCso2(original);
 
         try
         {
             using Cso2ContainerReader reader = new(path);
-            CsoDeepVerifyResult result = new ContainerDeepVerifier().Verify(reader, computeSha256: true);
+            CsoDeepVerifyResult result = ContainerDeepVerifier.Verify(reader, computeSha256: true);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Issues.Select(issue => $"{issue.Code}: {issue.Message}")));
+            Assert.True(result.Success, FormatIssues(result.Issues));
             Assert.Equal((ulong)original.Length, result.BytesReconstructed);
             Assert.Equal(Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(), result.Sha256);
         }
@@ -32,19 +31,41 @@ public sealed class ContainerDeepVerifierTests
     [Fact]
     public void Verify_WithZsoLz4_DecodesEveryBlock()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(255 - (index % 251)))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096, 251, invert: true);
         string path = CsoTestFileFactory.CreateTempZso(original);
 
         try
         {
             using ZsoContainerReader reader = new(path);
-            CsoDeepVerifyResult result = new ContainerDeepVerifier().Verify(reader, computeSha256: true);
+            CsoDeepVerifyResult result = ContainerDeepVerifier.Verify(reader, computeSha256: true);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Issues.Select(issue => $"{issue.Code}: {issue.Message}")));
+            Assert.True(result.Success, FormatIssues(result.Issues));
             Assert.Equal((ulong)original.Length, result.BytesReconstructed);
             Assert.Equal(Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(), result.Sha256);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+
+    [Fact]
+    public void Verify_WithRawIso_ReadsEverySector()
+    {
+        string path = ContainerFixtures.CreateMinimalIso9660();
+
+        try
+        {
+            using IsoContainerReader reader = new(path);
+            CsoDeepVerifyResult result = ContainerDeepVerifier.Verify(reader, computeSha256: true);
+
+            Assert.True(result.Success, FormatIssues(result.Issues));
+            Assert.Equal((ulong)new FileInfo(path).Length, result.BytesReconstructed);
+            Assert.Equal(reader.BlockCount, result.BlocksChecked);
+            Assert.Equal(reader.BlockCount, result.StoredBlocks);
+            Assert.Equal(0, result.CompressedBlocks);
+            Assert.Equal("Hybrid raw ISO verification", result.AlgorithmName);
         }
         finally
         {
@@ -69,5 +90,36 @@ public sealed class ContainerDeepVerifierTests
         {
             File.Delete(path);
         }
+    }
+
+    private static byte[] CreateModuloBytes(int length, int modulo, bool invert)
+    {
+        byte[] bytes = new byte[length];
+
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            int value = index % modulo;
+            bytes[index] = (byte)(invert ? 255 - value : value);
+        }
+
+        return bytes;
+    }
+
+    private static string FormatIssues(IReadOnlyList<CsoDeepVerifyIssue> issues)
+    {
+        if (issues.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        string[] lines = new string[issues.Count];
+
+        for (int index = 0; index < issues.Count; index++)
+        {
+            CsoDeepVerifyIssue issue = issues[index];
+            lines[index] = $"{issue.Code}: {issue.Message}";
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 }

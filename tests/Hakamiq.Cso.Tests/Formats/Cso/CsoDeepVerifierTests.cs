@@ -8,9 +8,7 @@ public sealed class CsoDeepVerifierTests
     [Fact]
     public void Verify_WithValidCso_ComputesReconstructedSha256()
     {
-        byte[] original = Enumerable.Range(0, 4096 + 17)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096 + 17, 251);
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(original);
 
         try
@@ -55,5 +53,17 @@ public sealed class CsoDeepVerifierTests
         {
             File.Delete(csoPath);
         }
+    }
+
+    private static byte[] CreateModuloBytes(int length, int modulo)
+    {
+        byte[] bytes = new byte[length];
+
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            bytes[index] = (byte)(index % modulo);
+        }
+
+        return bytes;
     }
 }

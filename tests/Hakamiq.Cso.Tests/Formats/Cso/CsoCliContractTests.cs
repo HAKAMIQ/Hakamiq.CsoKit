@@ -3,6 +3,8 @@ using System.Text.Json;
 using Hakamiq.Cso.Cli;
 using Hakamiq.Cso.Cli.Commands;
 using Hakamiq.Cso.Core.Formats.Cso;
+using Hakamiq.Cso.Core.Native;
+using Hakamiq.Cso.Tests.Fixtures;
 
 namespace Hakamiq.Cso.Tests.Formats.Cso;
 
@@ -176,28 +178,31 @@ public sealed class CsoCliContractTests
         Assert.True(options.GetProperty("zopfli").GetBoolean());
     }
 
-
     [Theory]
     [InlineData("codecs")]
     [InlineData("native-info")]
     public void CodecCapabilityCommands_DistinguishManagedLz4FromNativeCapabilities(string command)
     {
+        NativeCsoCapabilities capabilities = NativeCsoRuntime.GetCapabilities();
         CapturedRun run = Capture(() => CsoCommandDispatcher.Run([command]));
 
         Assert.Equal(CliExitCodes.Success, run.ExitCode);
         Assert.Contains("Managed LZ4 decode: available", run.StdOut, StringComparison.Ordinal);
-        Assert.Contains("Native LZ4 decode: unavailable", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains($"Native LZ4 decode: {Availability(capabilities.HasLz4)}", run.StdOut, StringComparison.Ordinal);
         Assert.Contains("LZ4 encode: unavailable", run.StdOut, StringComparison.Ordinal);
         Assert.DoesNotContain("  LZ4 decode: available", run.StdOut, StringComparison.Ordinal);
     }
 
-
     [Fact]
     public void VerifyDeep_WithCso2Json_UsesContainerVerifier()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
+        byte[] original = new byte[4096];
+
+        for (int index = 0; index < original.Length; index++)
+        {
+            original[index] = (byte)(index % 251);
+        }
+
         string path = CsoTestFileFactory.CreateTempCso2(original);
 
         try
@@ -225,6 +230,35 @@ public sealed class CsoCliContractTests
         }
     }
 
+
+    [Fact]
+    public void VerifyDeep_WithRawIsoJson_UsesRawIsoContainerVerifier()
+    {
+        string path = ContainerFixtures.CreateMinimalIso9660();
+
+        try
+        {
+            CapturedRun run = Capture(() => CsoCommandDispatcher.Run([
+                "verify",
+                path,
+                "--deep",
+                "--json"]));
+
+            Assert.Equal(CliExitCodes.Success, run.ExitCode);
+            Assert.Empty(run.StdErr);
+
+            using JsonDocument document = JsonDocument.Parse(run.StdOut);
+            JsonElement root = document.RootElement;
+
+            Assert.True(root.GetProperty("success").GetBoolean());
+            Assert.Equal("RawIso", root.GetProperty("format").GetString());
+            Assert.Equal((ulong)new FileInfo(path).Length, root.GetProperty("deep").GetProperty("bytesReconstructed").GetUInt64());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 
     [Theory]
     [InlineData("detect")]
@@ -271,6 +305,11 @@ public sealed class CsoCliContractTests
         Assert.Equal(JsonValueKind.Object, root.GetProperty("error").ValueKind);
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("error").GetProperty("code").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("error").GetProperty("message").GetString()));
+    }
+
+    private static string Availability(bool available)
+    {
+        return available ? "available" : "unavailable";
     }
 
     private static CapturedRun Capture(Func<int> run)

@@ -7,6 +7,7 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 public sealed class Cso1Writer
 {
     private const ulong OutputSafetyBufferBytes = 64UL * 1024UL * 1024UL;
+    private const int ProgressReportBlockInterval = 128;
 
     private readonly CsoOutputSafetyPolicy outputSafetyPolicy = new();
     private readonly CsoDiskSpacePreflight diskSpacePreflight = new();
@@ -20,6 +21,7 @@ public sealed class Cso1Writer
         bool deepVerify = true,
         bool collectCodecReport = false,
         int codecReportBlockLimit = 64,
+        IProgress<CsoCompressProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
@@ -27,6 +29,20 @@ public sealed class Cso1Writer
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (profile != CsoCompressionProfile.GameSafe)
+        {
+            return CsoCompressResult.Fail(
+                "UnsupportedRepairProfile",
+                "Streaming CSO1 repair supports game-safe profile only. Use compress or benchmark for Compat/Fast/Smallest/ArchiveSmallest profile comparisons.");
+        }
+
+        if (!deepVerify)
+        {
+            return CsoCompressResult.Fail(
+                "DeepVerifyRequired",
+                "Streaming CSO1 repair requires deep verification for game-safe output.");
+        }
 
         if (collectCodecReport && codecReportBlockLimit < 0)
         {
@@ -94,9 +110,9 @@ public sealed class Cso1Writer
                     output,
                     targetBlockSizeInt,
                     totalOutputBlocks,
-                    profile,
                     collectCodecReport,
                     codecReportBlockLimit,
+                    progress,
                     cancellationToken);
 
                 output.Flush(true);
@@ -104,21 +120,21 @@ public sealed class Cso1Writer
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (deepVerify || profile == CsoCompressionProfile.GameSafe)
+            CsoDeepVerifyResult deepVerifyResult = new CsoDeepVerifier().Verify(
+                tempOutputPath,
+                computeSha256: false);
+
+            if (!deepVerifyResult.Success)
             {
-                CsoDeepVerifyResult deepVerifyResult = new CsoDeepVerifier().Verify(
-                    tempOutputPath,
-                    computeSha256: false);
+                CsoDeepVerifyIssue? issue = deepVerifyResult.Issues.Count > 0
+                    ? deepVerifyResult.Issues[0]
+                    : null;
 
-                if (!deepVerifyResult.Success)
-                {
-                    CsoDeepVerifyIssue? issue = deepVerifyResult.Issues.FirstOrDefault();
-                    SafeDelete(tempOutputPath);
+                SafeDelete(tempOutputPath);
 
-                    return CsoCompressResult.Fail(
-                        issue?.Code ?? "VerificationFailed",
-                        issue?.Message ?? "Streaming repair output failed CSO deep verification.");
-                }
+                return CsoCompressResult.Fail(
+                    issue?.Code ?? "VerificationFailed",
+                    issue?.Message ?? "Streaming repair output failed CSO deep verification.");
             }
 
             File.Move(tempOutputPath, fullOutputPath, overwrite: forceOverwrite);
@@ -156,17 +172,21 @@ public sealed class Cso1Writer
         FileStream output,
         int targetBlockSize,
         int totalOutputBlocks,
-        CsoCompressionProfile profile,
         bool collectCodecReport,
         int codecReportBlockLimit,
+        IProgress<CsoCompressProgress>? progress,
         CancellationToken cancellationToken)
     {
         ulong dataStart = checked((ulong)CsoConstants.MinimumHeaderSize + ((ulong)(totalOutputBlocks + 1) * sizeof(uint)));
         CsoIndexBuilder indexBuilder = new(totalOutputBlocks, indexShift: 0);
         CsoOrderedOutputWriter outputWriter = new(output);
-        CsoCompressionWorker compressionWorker = new(profile, useZopfli: false, collectTrialReports: collectCodecReport);
+        CsoCompressionWorker compressionWorker = new(
+            CsoCompressionProfile.GameSafe,
+            useZopfli: false,
+            collectTrialReports: collectCodecReport);
 
         outputWriter.ReserveDataStart(dataStart);
+        ReportProgress(progress, 0, totalOutputBlocks, 0, reader.UncompressedSize);
 
         byte[] readerBuffer = new byte[checked((int)reader.BlockSize)];
         byte[] outputBlock = new byte[targetBlockSize];
@@ -233,6 +253,11 @@ public sealed class Cso1Writer
                     outputBlockIndex++;
                     outputBlockSourceOffset = logicalBytesRead;
                     outputBlockFill = 0;
+
+                    if (outputBlockIndex % ProgressReportBlockInterval == 0)
+                    {
+                        ReportProgress(progress, outputBlockIndex, totalOutputBlocks, logicalBytesRead, reader.UncompressedSize);
+                    }
                 }
             }
         }
@@ -261,12 +286,15 @@ public sealed class Cso1Writer
                 ref zeroBlocks);
 
             outputBlockIndex++;
+            ReportProgress(progress, outputBlockIndex, totalOutputBlocks, logicalBytesRead, reader.UncompressedSize);
         }
 
         if (outputBlockIndex != totalOutputBlocks)
         {
             throw new InvalidDataException($"Streaming writer produced {outputBlockIndex:N0} blocks, expected {totalOutputBlocks:N0}.");
         }
+
+        ReportProgress(progress, totalOutputBlocks, totalOutputBlocks, reader.UncompressedSize, reader.UncompressedSize);
 
         indexBuilder.AddFinalOffset(outputWriter.Position);
         ulong bytesWritten = outputWriter.Position;
@@ -285,6 +313,21 @@ public sealed class Cso1Writer
             codecWins,
             trialSummaryBuilder?.Build(codecWins),
             zeroBlocks);
+    }
+
+
+    private static void ReportProgress(
+        IProgress<CsoCompressProgress>? progress,
+        int completedBlocks,
+        int totalBlocks,
+        ulong bytesRead,
+        ulong totalBytes)
+    {
+        progress?.Report(new CsoCompressProgress(
+            completedBlocks,
+            totalBlocks,
+            bytesRead,
+            totalBytes));
     }
 
     private static void WriteOneOutputBlock(
@@ -382,9 +425,23 @@ public sealed class Cso1Writer
     private static string CreateUniqueTempOutputPath(string fullOutputPath)
     {
         string directory = Path.GetDirectoryName(fullOutputPath) ?? ".";
-        string fileName = Path.GetFileName(fullOutputPath);
 
-        return Path.Combine(directory, $".{fileName}.{Guid.NewGuid():N}.tmp");
+        for (int attempt = 0; attempt < 16; attempt++)
+        {
+            string candidate = Path.Combine(directory, $".cso-{CreateShortId()}.tmp");
+
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new IOException("Could not create a unique temporary output path.");
+    }
+
+    private static string CreateShortId()
+    {
+        return Guid.NewGuid().ToString("N")[..8];
     }
 
     private static void SafeDelete(string path)

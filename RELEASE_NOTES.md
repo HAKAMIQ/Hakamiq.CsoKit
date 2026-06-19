@@ -1,61 +1,32 @@
-# Hakamiq CsoKit 0.5.0
+# Hakamiq CsoKit 0.6.0
 
-Windows x64 stable release for PSP ISO/CSO workflows.
+Windows x64 release focused on PSP ISO/CSO workflows, WPF usability, and release-grade verification.
+
+## What's new
+
+- Added WPF desktop app release path for Windows.
+- Added localized plain-text reports for Arabic and English.
+- Added deep forensic CSO verification details.
+- Added Raw ISO deep verification through the block-container verifier.
+- Added repair diagnostics that distinguish rebuild-only from corruption repair and redump-required cases.
+- Improved progress feedback, report opening, output naming, and language switching.
+- Added official release gate script.
 
 ## Supported workflows
 
-- Inspect CSO files.
-- Verify CSO header and index structure.
-- Decompress CSO to ISO.
+- Detect supported container/image format.
+- Analyze PSP ISO structure.
+- Verify CSO and Raw ISO.
 - Compress ISO to CSO.
-- Estimate CSO size without writing output.
-- Use compression profiles: `smallest`, `compat`, and `fast`.
-- Use configurable `--threads`, `--block`, and optional native `--zopfli`.
-- Use text output for manual PowerShell work or JSON output for automation.
+- Decompress CSO to ISO.
+- Rebuild/repair readable ISO/CSO into normalized CSO.
 
-## Compression profiles
+## Release gate
 
-- `smallest`: default safe profile. Tries multiple managed Deflate candidates per block and chooses the smallest valid sector.
-- `compat`: compatibility-oriented profile. Uses a conservative safe Deflate path.
-- `fast`: faster compression path. Produces larger CSO files in exchange for speed.
+Before publishing, run:
 
-## Advanced compression
+```powershell
+.\scripts\Run-OfficialReleaseGate.ps1 -Version 0.6.0 -Runtime win-x64 -InputIso "G:\path\game.iso"
+```
 
-- `--threads <n>` enables a bounded parallel compression pipeline with ordered CSO output.
-- `--block <bytes>` supports larger power-of-two CSO block sizes for users who want better ratios and can accept reader compatibility tradeoffs.
-- `--zopfli` enables slower native Zopfli raw-Deflate trials. It requires `Hakamiq.Cso.Native.dll` to be available beside the executable.
-
-## Validation status
-
-This release includes local gates for:
-
-- Restore, build, and tests.
-- Forbidden public wording scan.
-- CLI help smoke.
-- JSON argument smoke.
-- Real ISO -> CSO -> ISO SHA256 roundtrip.
-- Real profile matrix for `smallest`, `compat`, and `fast`.
-- Published `hakamiq-cso.exe` smoke tests.
-- Release ZIP and source package verification.
-
-## Package contents
-
-The win-x64 release package contains:
-
-- `hakamiq-cso.exe`
-- `Hakamiq.Cso.Native.dll`
-- `README.md`
-- `LICENSE.txt`
-- `RELEASE_NOTES.md`
-- `THIRD_PARTY_NOTICES.md`
-- `SHA256SUMS.txt`
-
-Keep the files together in the same folder.
-
-## Native backend note
-
-The release package includes the native DLL used for runtime probing and optional Zopfli compression trials. Normal compression remains fully functional without `--zopfli`; explicit `--zopfli` fails clearly if the native backend is unavailable.
-
-## Scope
-
-This release intentionally focuses on PSP ISO/CSO workflows only. It does not add other PSP formats, CHD workflows, game-specific patches, lossy compression, or emulator configuration.
+If NuGet vulnerability metadata times out with `NU1900`, retry later. If the release must be validated while the NuGet audit feed is unavailable, use `-SkipNuGetAudit` and document that the NuGet audit was skipped for that run.

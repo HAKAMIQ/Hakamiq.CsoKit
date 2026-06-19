@@ -13,7 +13,7 @@ public sealed class FormatDetectorTests
 
         try
         {
-            FormatDetectionResult result = new FormatDetector().Detect(csoPath);
+            FormatDetectionResult result = FormatDetector.Detect(csoPath);
 
             Assert.True(result.Success);
             Assert.Equal(DetectedDiscFormat.Cso1, result.Format);
@@ -41,7 +41,7 @@ public sealed class FormatDetectorTests
             "CD001"u8.CopyTo(iso.AsSpan(pvd + 1));
             File.WriteAllBytes(isoPath, iso);
 
-            FormatDetectionResult result = new FormatDetector().Detect(isoPath);
+            FormatDetectionResult result = FormatDetector.Detect(isoPath);
 
             Assert.True(result.Success);
             Assert.Equal(DetectedDiscFormat.RawIso, result.Format);
@@ -69,7 +69,7 @@ public sealed class FormatDetectorTests
             System.Text.Encoding.ASCII.GetBytes(magic).CopyTo(bytes, 0);
             File.WriteAllBytes(path, bytes);
 
-            FormatDetectionResult result = new FormatDetector().Detect(path);
+            FormatDetectionResult result = FormatDetector.Detect(path);
 
             Assert.True(result.Success);
             Assert.Equal(expectedFormat, result.Format);

@@ -12,12 +12,24 @@ public static class AnalyzeCommand
             return CliExitCodes.InvalidArguments;
         }
 
-        PspIsoValidationResult result = new PspIsoValidator().Validate(
+        PspIsoValidationResult result = PspIsoValidator.Validate(
             options.InputPath,
             options.AllowPadding);
 
         if (options.Json)
         {
+            object[] issues = CreateIssuePayloads(result.Issues);
+
+            string? firstCode = null;
+            string? firstMessage = null;
+
+            if (result.Issues.Count > 0)
+            {
+                PspIsoValidationIssue firstIssue = result.Issues[0];
+                firstCode = firstIssue.Code;
+                firstMessage = firstIssue.Message;
+            }
+
             JsonConsole.Write(new
             {
                 schemaVersion = 1,
@@ -46,20 +58,15 @@ public static class AnalyzeCommand
                     pspSystemVersion = result.PspSystemVersion,
                     warnings = result.Warnings
                 },
-                issues = result.Issues.Select(issue => new
-                {
-                    code = issue.Code,
-                    message = issue.Message,
-                    path = issue.Path
-                }).ToArray(),
+                issues,
                 error = result.Success
                     ? null
                     : new CsoCommandError(
-                        result.Issues.FirstOrDefault()?.Code ?? "VerificationFailed",
-                        result.Issues.FirstOrDefault()?.Message ?? "PSP ISO analysis failed.")
+                        firstCode ?? "VerificationFailed",
+                        firstMessage ?? "PSP ISO analysis failed.")
             });
 
-            return result.Success ? CliExitCodes.Success : ToExitCode(result.Issues.FirstOrDefault()?.Code);
+            return result.Success ? CliExitCodes.Success : ToExitCode(firstCode);
         }
 
         Console.WriteLine("PSP ISO Analysis");
@@ -96,7 +103,27 @@ public static class AnalyzeCommand
             Console.Error.WriteLine($"{issue.Code}: {issue.Message}");
         }
 
-        return ToExitCode(result.Issues.FirstOrDefault()?.Code);
+        return ToExitCode(result.Issues.Count > 0 ? result.Issues[0].Code : null);
+    }
+
+    private static object[] CreateIssuePayloads(
+        IReadOnlyList<PspIsoValidationIssue> issues)
+    {
+        object[] payloads = new object[issues.Count];
+
+        for (int index = 0; index < issues.Count; index++)
+        {
+            PspIsoValidationIssue issue = issues[index];
+
+            payloads[index] = new
+            {
+                code = issue.Code,
+                message = issue.Message,
+                path = issue.Path
+            };
+        }
+
+        return payloads;
     }
 
     private static bool TryParseArgs(string[] args, out AnalyzeCommandOptions options)

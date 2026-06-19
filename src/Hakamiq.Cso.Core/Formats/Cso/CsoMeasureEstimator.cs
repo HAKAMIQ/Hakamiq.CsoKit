@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Hakamiq.Cso.Core.Native;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
@@ -6,6 +7,10 @@ public sealed class CsoMeasureEstimator
 {
     private const int ProgressReportBlockInterval = 256;
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Keep the instance API stable for existing CLI/tests callers.")]
     public CsoMeasureResult Measure(CsoMeasureOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

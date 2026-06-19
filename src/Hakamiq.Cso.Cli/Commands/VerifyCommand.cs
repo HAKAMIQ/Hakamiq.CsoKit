@@ -1,6 +1,7 @@
 using Hakamiq.Cso.Core.Formats.Containers;
 using Hakamiq.Cso.Core.Formats.Cso;
 using Hakamiq.Cso.Core.Formats.DiscImage;
+using Hakamiq.Cso.Core.Formats.Iso;
 
 namespace Hakamiq.Cso.Cli.Commands;
 
@@ -21,6 +22,7 @@ public static class VerifyCommand
 
         CsoVerifier verifier = new();
         CsoVerificationResult result = verifier.Verify(options.InputPath);
+        string? formatName = result.Header?.IsCsoV2 == true ? "Cso2" : "Cso1";
 
         if (options.Json)
         {
@@ -47,8 +49,17 @@ public static class VerifyCommand
                     expectedEntries = result.Header.IndexEntryCount
                 };
 
-            string? firstCode = result.Issues.FirstOrDefault()?.Code;
-            string? firstMessage = result.Issues.FirstOrDefault()?.Message;
+            string? firstCode = null;
+            string? firstMessage = null;
+
+            if (result.Issues.Count > 0)
+            {
+                CsoVerificationIssue firstIssue = result.Issues[0];
+                firstCode = firstIssue.Code;
+                firstMessage = firstIssue.Message;
+            }
+
+            object[] issues = CreateVerificationIssuePayloads(result.Issues);
 
             JsonConsole.Write(new
             {
@@ -57,25 +68,17 @@ public static class VerifyCommand
                 success = result.Success,
                 input = SafeFullPath(options.InputPath),
                 output = (string?)null,
-                format = "Cso1",
+                format = result.Header is null ? null : formatName,
                 warnings = Array.Empty<string>(),
                 diagnostics = new
                 {
                     header,
                     index,
-                    issues = result.Issues.Select(issue => new
-                    {
-                        code = issue.Code,
-                        message = issue.Message
-                    }).ToArray()
+                    issues
                 },
                 header,
                 index,
-                issues = result.Issues.Select(issue => new
-                {
-                    code = issue.Code,
-                    message = issue.Message
-                }).ToArray(),
+                issues,
                 error = result.Success
                     ? null
                     : new CsoCommandError(firstCode ?? "VerificationFailed", firstMessage ?? "CSO verification failed.")
@@ -83,7 +86,7 @@ public static class VerifyCommand
 
             return result.Success
                 ? CliExitCodes.Success
-                : ToExitCode(result.Issues.FirstOrDefault()?.Code);
+                : ToExitCode(firstCode);
         }
 
         Console.WriteLine("CSO Verification");
@@ -106,12 +109,12 @@ public static class VerifyCommand
             Console.Error.WriteLine($"{issue.Code}: {issue.Message}");
         }
 
-        return ToExitCode(result.Issues.FirstOrDefault()?.Code);
+        return ToExitCode(result.Issues.Count > 0 ? result.Issues[0].Code : null);
     }
 
     private static int RunDeepVerify(VerifyCommandOptions options)
     {
-        FormatDetectionResult detected = new FormatDetector().Detect(options.InputPath);
+        FormatDetectionResult detected = FormatDetector.Detect(options.InputPath);
         CsoDeepVerifyResult result;
 
         if (!detected.Success)
@@ -131,7 +134,8 @@ public static class VerifyCommand
                 DetectedDiscFormat.Cso1 => new CsoDeepVerifier().Verify(
                     options.InputPath,
                     options.Sha256),
-                DetectedDiscFormat.Cso2 or
+                DetectedDiscFormat.RawIso or
+                    DetectedDiscFormat.Cso2 or
                     DetectedDiscFormat.Zso or
                     DetectedDiscFormat.Dax => RunContainerDeepVerify(
                         options.InputPath,
@@ -143,7 +147,7 @@ public static class VerifyCommand
                     bytesReconstructed: 0,
                     [new CsoDeepVerifyIssue(
                         "UnsupportedContainer",
-                        $"{detected.Format} is not supported by deep verification. Use CSO1, CSO2, ZSO, or DAX input.")]),
+                        $"{detected.Format} is not supported by deep verification. Use ISO, CSO1, CSO2, ZSO, or DAX input.")]),
             };
         }
 
@@ -167,15 +171,17 @@ public static class VerifyCommand
                 sha256 = result.Sha256
             };
 
-            var issues = result.Issues.Select(issue => new
-            {
-                code = issue.Code,
-                message = issue.Message,
-                blockIndex = issue.BlockIndex
-            }).ToArray();
+            object[] issues = CreateDeepIssuePayloads(result.Issues);
 
-            string? firstCode = result.Issues.FirstOrDefault()?.Code;
-            string? firstMessage = result.Issues.FirstOrDefault()?.Message;
+            string? firstCode = null;
+            string? firstMessage = null;
+
+            if (result.Issues.Count > 0)
+            {
+                CsoDeepVerifyIssue firstIssue = result.Issues[0];
+                firstCode = firstIssue.Code;
+                firstMessage = firstIssue.Message;
+            }
 
             JsonConsole.Write(new
             {
@@ -204,7 +210,7 @@ public static class VerifyCommand
 
             return result.Success
                 ? CliExitCodes.Success
-                : ToExitCode(result.Issues.FirstOrDefault()?.Code);
+                : ToExitCode(firstCode);
         }
 
         Console.WriteLine("Deep Verification");
@@ -237,7 +243,7 @@ public static class VerifyCommand
             Console.Error.WriteLine($"{issue.Code}: {issue.Message}");
         }
 
-        return ToExitCode(result.Issues.FirstOrDefault()?.Code);
+        return ToExitCode(result.Issues.Count > 0 ? result.Issues[0].Code : null);
     }
 
     private static CsoDeepVerifyResult RunContainerDeepVerify(
@@ -247,8 +253,15 @@ public static class VerifyCommand
     {
         try
         {
+            CsoDeepVerifyResult? earlyFailure = ValidateRawIsoBeforeDeepRead(inputPath, format);
+
+            if (earlyFailure is not null)
+            {
+                return earlyFailure;
+            }
+
             using IBlockContainerReader reader = CreateContainerReader(inputPath, format);
-            return new ContainerDeepVerifier().Verify(reader, computeSha256);
+            return ContainerDeepVerifier.Verify(reader, computeSha256);
         }
         catch (BlockContainerReadException ex)
         {
@@ -276,12 +289,53 @@ public static class VerifyCommand
         }
     }
 
+    private static CsoDeepVerifyResult? ValidateRawIsoBeforeDeepRead(
+        string inputPath,
+        DetectedDiscFormat format)
+    {
+        if (format is not DetectedDiscFormat.RawIso)
+        {
+            return null;
+        }
+
+        FileInfo inputInfo = new(inputPath);
+        IsoAlignmentResult alignment = IsoAlignmentPolicy.Validate(inputInfo.Length, allowPadding: false);
+
+        if (alignment.Success)
+        {
+            return null;
+        }
+
+        long totalBlocks = inputInfo.Length <= 0
+            ? 0
+            : checked((inputInfo.Length + IsoAlignmentPolicy.SectorSize - 1) / IsoAlignmentPolicy.SectorSize);
+
+        return CsoDeepVerifyResult.Fail(
+            header: null,
+            blocksChecked: 0,
+            bytesReconstructed: 0,
+            [new CsoDeepVerifyIssue(
+                alignment.ErrorCode ?? "IsoAlignmentFailed",
+                alignment.ErrorMessage ?? "Raw ISO alignment validation failed.")]) with
+        {
+            AlgorithmName = "Hybrid raw ISO verification",
+            VerificationScope = "ISO9660 probe + raw sector read + full payload reconstruction",
+            LegacyLayer = "ISO9660 primary-volume probe and strict 2048-byte sector-alignment validation",
+            ModernLayer = "Not reached because raw ISO alignment validation failed.",
+            ForensicLayer = "Coverage, zero-content, bounds, and reconstruction diagnostics",
+            FileLength = inputInfo.Length,
+            TotalBlocks = totalBlocks,
+            ExpectedReconstructedBytes = inputInfo.Length > 0 ? (ulong)inputInfo.Length : 0,
+        };
+    }
+
     private static IBlockContainerReader CreateContainerReader(
         string inputPath,
         DetectedDiscFormat format)
     {
         return format switch
         {
+            DetectedDiscFormat.RawIso => new IsoContainerReader(inputPath),
             DetectedDiscFormat.Cso2 => new Cso2ContainerReader(inputPath),
             DetectedDiscFormat.Zso => new ZsoContainerReader(inputPath),
             DetectedDiscFormat.Dax => new DaxContainerReader(inputPath),
@@ -289,6 +343,45 @@ public static class VerifyCommand
                 "UnsupportedContainer",
                 $"{format} is not supported by container deep verification."),
         };
+    }
+
+    private static object[] CreateVerificationIssuePayloads(
+        IReadOnlyList<CsoVerificationIssue> issues)
+    {
+        object[] payloads = new object[issues.Count];
+
+        for (int index = 0; index < issues.Count; index++)
+        {
+            CsoVerificationIssue issue = issues[index];
+
+            payloads[index] = new
+            {
+                code = issue.Code,
+                message = issue.Message
+            };
+        }
+
+        return payloads;
+    }
+
+    private static object[] CreateDeepIssuePayloads(
+        IReadOnlyList<CsoDeepVerifyIssue> issues)
+    {
+        object[] payloads = new object[issues.Count];
+
+        for (int index = 0; index < issues.Count; index++)
+        {
+            CsoDeepVerifyIssue issue = issues[index];
+
+            payloads[index] = new
+            {
+                code = issue.Code,
+                message = issue.Message,
+                blockIndex = issue.BlockIndex
+            };
+        }
+
+        return payloads;
     }
 
     private static bool TryParseArgs(
@@ -355,7 +448,7 @@ public static class VerifyCommand
                 => CliExitCodes.InvalidCsoHeader,
             "UnsupportedVersion" or "UnsupportedCsoVersion" or "UnsupportedContainer"
                 => CliExitCodes.UnsupportedCsoVersion,
-            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile" or "FinalOffsetPastEndOfFile" or "FirstDataOffsetBeforeIndexEnd" or "IndexEntryCountMismatch" or "FinalIndexEntryHasFlag" or "FinalOffsetMismatch"
+            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile" or "FinalOffsetPastEndOfFile" or "FirstDataOffsetBeforeIndexEnd" or "IndexEntryCountMismatch" or "FinalIndexEntryHasFlag" or "CsoV2FinalSentinelHighBit" or "FinalOffsetMismatch"
                 => CliExitCodes.CorruptIndexTable,
             "CorruptCompressedBlock" or "CsoDeepVerifyFailed" or "InvalidCompressedBlockSize" or "StoredBlockTooSmall" or "UnexpectedEndOfFile" or "ReconstructedSizeMismatch" or "ReDumpRequired"
                 => CliExitCodes.DecompressionFailed,
@@ -377,7 +470,7 @@ public static class VerifyCommand
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: hakamiq-cso verify <input.cso|input.zso|input.dax> [--deep] [--sha256] [--json]");
+        Console.Error.WriteLine("Usage: hakamiq-cso verify <input.iso|input.cso|input.zso|input.dax> [--deep] [--sha256] [--json]");
     }
 
     private sealed record VerifyCommandOptions(

@@ -14,7 +14,7 @@ public sealed class PspIsoFixtureTests
 
         try
         {
-            PspIsoValidationResult result = new PspIsoValidator().Validate(path);
+            PspIsoValidationResult result = PspIsoValidator.Validate(path);
 
             Assert.True(result.Success);
             Assert.True(result.HasPspGame);
@@ -36,7 +36,7 @@ public sealed class PspIsoFixtureTests
 
         try
         {
-            PspIsoValidationResult result = new PspIsoValidator().Validate(path);
+            PspIsoValidationResult result = PspIsoValidator.Validate(path);
 
             Assert.True(result.Success);
             Assert.False(result.HasParamSfo);
@@ -55,7 +55,7 @@ public sealed class PspIsoFixtureTests
 
         try
         {
-            PspIsoValidationResult result = new PspIsoValidator().Validate(path);
+            PspIsoValidationResult result = PspIsoValidator.Validate(path);
 
             Assert.True(result.Success);
             Assert.Contains(result.Warnings, warning => warning.Contains("PARAM.SFO", StringComparison.OrdinalIgnoreCase));
@@ -75,7 +75,7 @@ public sealed class PspIsoFixtureTests
 
         try
         {
-            PspIsoValidationResult result = new PspIsoValidator().Validate(path);
+            PspIsoValidationResult result = PspIsoValidator.Validate(path);
 
             Assert.True(result.Success);
             Assert.Contains(result.Warnings, warning => warning.Contains("mismatch", StringComparison.OrdinalIgnoreCase));

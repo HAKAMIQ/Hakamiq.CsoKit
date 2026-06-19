@@ -3,12 +3,12 @@ using Hakamiq.Cso.Core.Formats.Psp;
 
 namespace Hakamiq.Cso.Core.Formats.Iso;
 
-public sealed class PspIsoValidator
+public static class PspIsoValidator
 {
     private const int ParamSfoSafeReadLimit = 128 * 1024;
     private const int UmdDataSafeReadLimit = 4 * 1024;
 
-    public PspIsoValidationResult Validate(string inputPath, bool allowPadding = false)
+    public static PspIsoValidationResult Validate(string inputPath, bool allowPadding = false)
     {
         if (string.IsNullOrWhiteSpace(inputPath))
         {
@@ -113,7 +113,7 @@ public sealed class PspIsoValidator
                 {
                     byte[] paramSfo = iso.ReadFile(paramSfoEntry, ParamSfoSafeReadLimit);
 
-                    if (new PspParamSfoReader().TryRead(paramSfo, out PspDiscIdentity identity, out string? warning))
+                    if (PspParamSfoReader.TryRead(paramSfo, out PspDiscIdentity identity, out string? warning))
                     {
                         title = identity.Title;
                         category = identity.Category;

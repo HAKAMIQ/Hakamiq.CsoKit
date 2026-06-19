@@ -58,7 +58,32 @@ public sealed class CsoVerifierTests
     }
 
     [Fact]
-    public void Verify_WithOffsetPastEndOfFile_ReturnsFailure()
+    public void Verify_WithIndexOffsetPastEndOfFile_ReturnsFailure()
+    {
+        string path = CreateTempCsoLikeFile(
+            uncompressedSize: 4096,
+            blockSize: 2048,
+            version: 1,
+            indexShift: 0,
+            rawEntries: [36, 500, 500],
+            dataLength: 200);
+
+        try
+        {
+            CsoVerifier verifier = new();
+            CsoVerificationResult result = verifier.Verify(path);
+
+            Assert.False(result.Success);
+            Assert.Contains(result.Issues, issue => issue.Code == "IndexOffsetPastEndOfFile");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Verify_WithFinalOffsetPastEndOfFile_ReturnsFailure()
     {
         string path = CreateTempCsoLikeFile(
             uncompressedSize: 4096,
@@ -74,7 +99,32 @@ public sealed class CsoVerifierTests
             CsoVerificationResult result = verifier.Verify(path);
 
             Assert.False(result.Success);
-            Assert.Contains(result.Issues, issue => issue.Code == "IndexOffsetPastEndOfFile");
+            Assert.Contains(result.Issues, issue => issue.Code == "FinalOffsetPastEndOfFile");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Verify_WithCso2FinalSentinelHighBit_ReturnsFailure()
+    {
+        string path = CreateTempCsoLikeFile(
+            uncompressedSize: 4096,
+            blockSize: 2048,
+            version: 2,
+            indexShift: 0,
+            rawEntries: [36, 100, 0x800000C8],
+            dataLength: 200);
+
+        try
+        {
+            CsoVerifier verifier = new();
+            CsoVerificationResult result = verifier.Verify(path);
+
+            Assert.False(result.Success);
+            Assert.Contains(result.Issues, issue => issue.Code == "CsoV2FinalSentinelHighBit");
         }
         finally
         {

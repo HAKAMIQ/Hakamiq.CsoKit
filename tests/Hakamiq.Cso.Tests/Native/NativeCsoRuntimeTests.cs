@@ -15,13 +15,15 @@ public sealed class NativeCsoRuntimeTests
 
         byte[] original = CreateSampleBlock();
 
-        foreach (NativeCsoRawCodec codec in new[]
-        {
+        NativeCsoRawCodec[] codecs =
+        [
             NativeCsoRawCodec.ZlibDefault,
             NativeCsoRawCodec.ZlibFiltered,
             NativeCsoRawCodec.ZlibHuffmanOnly,
             NativeCsoRawCodec.ZlibRle,
-        })
+        ];
+
+        foreach (NativeCsoRawCodec codec in codecs)
         {
             Assert.True(NativeCsoRuntime.TryDeflateRaw(codec, level: 9, strategy: 0, original, out byte[] compressed));
             Assert.True(NativeCsoRuntime.TryInflateRaw(compressed, original.Length, out byte[] restored));
@@ -40,7 +42,9 @@ public sealed class NativeCsoRuntimeTests
 
         byte[] original = CreateSampleBlock();
 
-        foreach (int level in new[] { 1, 6, 9, 12 })
+        int[] levels = [1, 6, 9, 12];
+
+        foreach (int level in levels)
         {
             Assert.True(NativeCsoRuntime.TryDeflateRaw(NativeCsoRawCodec.LibDeflate, level, strategy: 0, original, out byte[] compressed));
             Assert.True(NativeCsoRuntime.TryInflateRaw(compressed, original.Length, out byte[] restored));
@@ -50,7 +54,6 @@ public sealed class NativeCsoRuntimeTests
 
     private static byte[] CreateSampleBlock()
     {
-        byte[] block = new byte[4096];
-        return block;
+        return new byte[4096];
     }
 }

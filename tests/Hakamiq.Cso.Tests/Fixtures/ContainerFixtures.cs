@@ -12,6 +12,8 @@ internal static class ContainerFixtures
 
     public static byte[] DeterministicBytes(int length)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+
         byte[] bytes = new byte[length];
 
         for (int index = 0; index < bytes.Length; index++)
@@ -82,7 +84,7 @@ internal static class ContainerFixtures
         {
             int sourceOffset = checked(blockIndex * blockSize);
             int sourceLength = Math.Min(blockSize, logicalBytes.Length - sourceOffset);
-            byte[] block = logicalBytes.AsSpan(sourceOffset, sourceLength).ToArray();
+            byte[] block = logicalBytes[sourceOffset..(sourceOffset + sourceLength)];
             byte[] frame = blockIndex == 0 ? block : CompressZLib(block);
 
             offsets[blockIndex] = checked((uint)cursor);
@@ -184,6 +186,8 @@ internal static class ContainerFixtures
 
     public static string CreateTruncatedCopy(string inputPath, int bytesToRemove = 8)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytesToRemove);
+
         byte[] bytes = File.ReadAllBytes(inputPath);
         Array.Resize(ref bytes, Math.Max(0, bytes.Length - bytesToRemove));
         string path = TempPath(Path.GetExtension(inputPath));
@@ -206,13 +210,22 @@ internal static class ContainerFixtures
             ("PSP_SYSTEM_VER", "6.60"),
         ];
 
-        byte[] keyTable = Encoding.ASCII.GetBytes(string.Concat(values.Select(static value => value.Key + "\0")));
-        List<byte[]> dataValues = values.Select(static value => Encoding.UTF8.GetBytes(value.Value + "\0")).ToList();
+        byte[] keyTable = CreateParamSfoKeyTable(values);
+        byte[][] dataValues = new byte[values.Length][];
+        int dataValuesSize = 0;
+
+        for (int index = 0; index < values.Length; index++)
+        {
+            byte[] data = Encoding.UTF8.GetBytes(values[index].Value + "\0");
+            dataValues[index] = data;
+            dataValuesSize += data.Length;
+        }
+
         int headerSize = 20;
         int entryTableSize = values.Length * 16;
         int keyTableOffset = headerSize + entryTableSize;
         int dataTableOffset = keyTableOffset + keyTable.Length;
-        int totalSize = dataTableOffset + dataValues.Sum(static value => value.Length);
+        int totalSize = dataTableOffset + dataValuesSize;
         byte[] bytes = new byte[totalSize];
 
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0, 4), 0x46535000);
@@ -241,6 +254,20 @@ internal static class ContainerFixtures
 
         keyTable.CopyTo(bytes, keyTableOffset);
         return bytes;
+    }
+
+    private static byte[] CreateParamSfoKeyTable((string Key, string Value)[] values)
+    {
+        using MemoryStream stream = new();
+
+        foreach ((string key, _) in values)
+        {
+            byte[] keyBytes = Encoding.ASCII.GetBytes(key);
+            stream.Write(keyBytes);
+            stream.WriteByte(0);
+        }
+
+        return stream.ToArray();
     }
 
     private static void WritePrimaryVolumeDescriptor(byte[] iso)
@@ -310,10 +337,10 @@ internal static class ContainerFixtures
         }
 
         destination[0] = checked((byte)length);
-        BinaryPrimitives.WriteUInt32LittleEndian(destination.Slice(2, 4), extent);
-        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(6, 4), extent);
-        BinaryPrimitives.WriteUInt32LittleEndian(destination.Slice(10, 4), size);
-        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(14, 4), size);
+        BinaryPrimitives.WriteUInt32LittleEndian(destination[2..6], extent);
+        BinaryPrimitives.WriteUInt32BigEndian(destination[6..10], extent);
+        BinaryPrimitives.WriteUInt32LittleEndian(destination[10..14], size);
+        BinaryPrimitives.WriteUInt32BigEndian(destination[14..18], size);
         destination[25] = isDirectory ? (byte)0x02 : (byte)0x00;
         destination[28] = 1;
         destination[32] = checked((byte)nameBytes.Length);

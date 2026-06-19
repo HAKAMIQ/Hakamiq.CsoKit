@@ -33,7 +33,7 @@ internal static class CsoTestFileFactory
         {
             int sourceOffset = checked(blockIndex * blockSizeInt);
             int sourceLength = Math.Min(blockSizeInt, originalBytes.Length - sourceOffset);
-            byte[] block = originalBytes.AsSpan(sourceOffset, sourceLength).ToArray();
+            byte[] block = originalBytes[sourceOffset..(sourceOffset + sourceLength)];
             bool storeUncompressed = storeBlockUncompressed?.Invoke(blockIndex) ?? false;
 
             rawEntries.Add(EncodeIndexOffset(currentOffset, indexShift, storeUncompressed));
@@ -119,7 +119,7 @@ internal static class CsoTestFileFactory
         {
             int sourceOffset = checked(blockIndex * blockSize);
             int sourceLength = Math.Min(blockSize, originalBytes.Length - sourceOffset);
-            byte[] block = originalBytes.AsSpan(sourceOffset, sourceLength).ToArray();
+            byte[] block = originalBytes[sourceOffset..(sourceOffset + sourceLength)];
             byte[] compressed = CompressZLib(block);
 
             if (compressed.Length > ushort.MaxValue)
@@ -259,7 +259,7 @@ internal static class CsoTestFileFactory
         {
             int sourceOffset = checked(blockIndex * blockSizeInt);
             int sourceLength = Math.Min(blockSizeInt, originalBytes.Length - sourceOffset);
-            byte[] block = originalBytes.AsSpan(sourceOffset, sourceLength).ToArray();
+            byte[] block = originalBytes[sourceOffset..(sourceOffset + sourceLength)];
             byte[] encoded = encodeBlock(block);
 
             rawEntries.Add(EncodeIndexOffset(currentOffset, indexShift: 0, hasFlag: hasFlag(blockIndex)));
@@ -332,12 +332,25 @@ internal static class CsoTestFileFactory
 
     private static byte[] EncodeLz4Block(byte[] block)
     {
-        if (block.Length >= 5 && block.All(static value => value == 0))
+        if (block.Length >= 5 && IsAllZero(block))
         {
             return EncodeLz4ZeroRun(block.Length);
         }
 
         return EncodeLz4LiteralOnly(block);
+    }
+
+    private static bool IsAllZero(ReadOnlySpan<byte> block)
+    {
+        foreach (byte value in block)
+        {
+            if (value != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static byte[] EncodeLz4ZeroRun(int length)
@@ -378,6 +391,8 @@ internal static class CsoTestFileFactory
 
     private static void WriteExtendedLz4Length(Stream output, int length)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+
         while (length >= 255)
         {
             output.WriteByte(255);

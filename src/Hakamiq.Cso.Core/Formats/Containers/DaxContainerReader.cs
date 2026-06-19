@@ -13,7 +13,6 @@ public sealed class DaxContainerReader : IBlockContainerReader
     private readonly uint[] offsets;
     private readonly ushort[] sizes;
     private readonly DaxNonCompressedArea[] nonCompressedAreas;
-    private readonly uint version;
 
     public DaxContainerReader(string inputPath)
     {
@@ -37,9 +36,9 @@ public sealed class DaxContainerReader : IBlockContainerReader
                     "DAX magic did not match the expected container signature.");
             }
 
-            uint uncompressedSize = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(4, 4));
-            version = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(8, 4));
-            uint nonCompressedAreaCount = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(12, 4));
+            uint uncompressedSize = BinaryPrimitives.ReadUInt32LittleEndian(header[4..8]);
+            uint version = BinaryPrimitives.ReadUInt32LittleEndian(header[8..12]);
+            uint nonCompressedAreaCount = BinaryPrimitives.ReadUInt32LittleEndian(header[12..16]);
 
             if (version > 1)
             {
@@ -92,14 +91,24 @@ public sealed class DaxContainerReader : IBlockContainerReader
                     "DAX non-compressed area table is unreasonably large.");
             }
 
-            nonCompressedAreas = new DaxNonCompressedArea[nonCompressedAreaCount];
+            nonCompressedAreas = new DaxNonCompressedArea[checked((int)nonCompressedAreaCount)];
             Span<byte> areaBytes = stackalloc byte[sizeof(uint) * 2];
 
             for (int i = 0; i < nonCompressedAreas.Length; i++)
             {
                 ReadExactly(stream, areaBytes);
+
                 uint start = BinaryPrimitives.ReadUInt32LittleEndian(areaBytes[..4]);
-                uint count = BinaryPrimitives.ReadUInt32LittleEndian(areaBytes.Slice(4, 4));
+                uint count = BinaryPrimitives.ReadUInt32LittleEndian(areaBytes[4..8]);
+                ulong end = (ulong)start + count;
+
+                if (count == 0 || start >= (uint)BlockCount || end > (uint)BlockCount)
+                {
+                    throw new BlockContainerReadException(
+                        "InvalidNonCompressedArea",
+                        "DAX non-compressed area points outside the decoded block range.");
+                }
+
                 nonCompressedAreas[i] = new DaxNonCompressedArea(start, count);
             }
 
@@ -175,7 +184,7 @@ public sealed class DaxContainerReader : IBlockContainerReader
 
         try
         {
-            using MemoryStream compressedStream = new(compressed);
+            using MemoryStream compressedStream = new(compressed, writable: false);
             using ZLibStream zlib = new(compressedStream, CompressionMode.Decompress);
             int read = ReadExactlyOrLess(zlib, output[..expectedBytes]);
 
@@ -184,6 +193,16 @@ public sealed class DaxContainerReader : IBlockContainerReader
                 throw new BlockContainerReadException(
                     "CorruptCompressedBlock",
                     $"DAX zlib block {blockIndex} produced {read} bytes, expected {expectedBytes}. Re-dump required.",
+                    blockIndex);
+            }
+
+            Span<byte> extra = stackalloc byte[1];
+
+            if (zlib.Read(extra) != 0)
+            {
+                throw new BlockContainerReadException(
+                    "CorruptCompressedBlock",
+                    $"DAX zlib block {blockIndex} produced more bytes than expected. Re-dump required.",
                     blockIndex);
             }
 

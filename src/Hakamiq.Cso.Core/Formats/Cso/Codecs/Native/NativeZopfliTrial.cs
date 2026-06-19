@@ -31,17 +31,40 @@ public sealed class NativeZopfliTrial : ICsoCodecTrial
         ReadOnlySpan<byte> input,
         out CsoCodecTrialResult result)
     {
-        if (NativeCsoRuntime.TryDeflateZopfli(input, iterations, out byte[] compressed))
+        NativeCsoCapabilities capabilities = NativeCsoRuntime.GetCapabilities();
+
+        if (!capabilities.HasZopfli)
         {
-            result = new CsoCodecTrialResult(Kind, Name, compressed, compressed.Length, Success: true);
-            return true;
+            result = CsoCodecTrialResult.Fail(
+                Kind,
+                Name,
+                "NativeCodecUnavailable",
+                "Native Zopfli raw deflate is unavailable in this build.");
+            return false;
         }
 
-        result = CsoCodecTrialResult.Fail(
-            Kind,
-            Name,
-            "NativeCodecUnavailable",
-            "Native Zopfli raw deflate is unavailable or failed for this block.");
-        return false;
+        if (!NativeCsoRuntime.TryDeflateZopfli(input, iterations, out byte[] compressed) ||
+            compressed.Length == 0)
+        {
+            result = CsoCodecTrialResult.Fail(
+                Kind,
+                Name,
+                "NativeCodecUnavailable",
+                "Native Zopfli raw deflate failed for this block.");
+            return false;
+        }
+
+        if (!RawDeflateVerifier.RoundtripEquals(compressed, input, input.Length))
+        {
+            result = CsoCodecTrialResult.Fail(
+                Kind,
+                Name,
+                "NativeCodecRoundtripFailed",
+                "Native Zopfli raw deflate failed roundtrip validation.");
+            return false;
+        }
+
+        result = new CsoCodecTrialResult(Kind, Name, compressed, compressed.Length, Success: true);
+        return true;
     }
 }

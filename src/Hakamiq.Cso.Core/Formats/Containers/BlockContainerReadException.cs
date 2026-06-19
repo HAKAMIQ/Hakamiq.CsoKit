@@ -1,19 +1,30 @@
 namespace Hakamiq.Cso.Core.Formats.Containers;
 
-public sealed class BlockContainerReadException : Exception
+public sealed class BlockContainerReadException(
+    string code,
+    string message,
+    int? blockIndex = null,
+    Exception? innerException = null)
+    : Exception(message, innerException)
 {
-    public BlockContainerReadException(
-        string code,
-        string message,
-        int? blockIndex = null,
-        Exception? innerException = null)
-        : base(message, innerException)
+    public BlockContainerReadException()
+        : this("BlockContainerReadFailed", "Block container read failed.")
     {
-        Code = code;
-        BlockIndex = blockIndex;
     }
 
-    public string Code { get; }
+    public BlockContainerReadException(string message)
+        : this("BlockContainerReadFailed", message)
+    {
+    }
 
-    public int? BlockIndex { get; }
+    public BlockContainerReadException(string message, Exception innerException)
+        : this("BlockContainerReadFailed", message, blockIndex: null, innerException)
+    {
+    }
+
+    public string Code { get; } = string.IsNullOrWhiteSpace(code)
+        ? "BlockContainerReadFailed"
+        : code;
+
+    public int? BlockIndex { get; } = blockIndex;
 }

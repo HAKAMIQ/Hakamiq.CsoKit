@@ -5,6 +5,13 @@ namespace Hakamiq.Cso.Tests.Formats;
 
 public sealed class CorruptContainerRefusalTests
 {
+    private static readonly string[] CorruptRepairErrorCodes =
+    [
+        "ReDumpRequired",
+        "CorruptCompressedBlock",
+        "IoError",
+    ];
+
     [Fact]
     public void Verify_WithCorruptIndex_DoesNotSucceed()
     {
@@ -21,6 +28,7 @@ public sealed class CorruptContainerRefusalTests
             File.WriteAllBytes(input, bytes);
 
             CsoVerificationResult result = new CsoVerifier().Verify(input);
+
             Assert.False(result.Success);
             Assert.Contains(result.Issues, issue =>
                 issue.Code is "IndexOffsetPastEndOfFile" or "IndexOffsetsNotMonotonic" or "FinalOffsetPastEndOfFile");
@@ -40,7 +48,10 @@ public sealed class CorruptContainerRefusalTests
 
         try
         {
-            CsoDeepVerifyResult verify = new CsoDeepVerifier().Verify(truncated, computeSha256: false);
+            CsoDeepVerifyResult verify = new CsoDeepVerifier().Verify(
+                truncated,
+                computeSha256: false);
+
             Assert.False(verify.Success);
         }
         finally
@@ -60,7 +71,7 @@ public sealed class CorruptContainerRefusalTests
 
         try
         {
-            CsoRepairResult repair = new CsoRepairer().Repair(new CsoRepairOptions(
+            CsoRepairResult repair = CsoRepairer.Repair(new CsoRepairOptions(
                 corrupt,
                 output,
                 ForceOverwrite: false,
@@ -70,7 +81,7 @@ public sealed class CorruptContainerRefusalTests
 
             Assert.False(repair.Success);
             Assert.False(File.Exists(output));
-            Assert.Contains(repair.ErrorCode, new[] { "ReDumpRequired", "CorruptCompressedBlock", "IoError" });
+            Assert.Contains(repair.ErrorCode, CorruptRepairErrorCodes);
         }
         finally
         {

@@ -14,7 +14,7 @@ public static class DecompressCommand
 
         using CancellationTokenSource cancellation = new();
 
-        ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+        void CancelHandler(object? sender, ConsoleCancelEventArgs eventArgs)
         {
             eventArgs.Cancel = true;
 
@@ -28,9 +28,9 @@ public static class DecompressCommand
                     Console.Error.WriteLine("Cancellation requested. Cleaning up...");
                 }
             }
-        };
+        }
 
-        Console.CancelKeyPress += cancelHandler;
+        Console.CancelKeyPress += CancelHandler;
 
         try
         {
@@ -60,13 +60,15 @@ public static class DecompressCommand
                     options.InputPath,
                     outputPath,
                     options.Force && !autoOutput,
-                    cancellation.Token,
-                    progress));
+                    progress,
+                    cancellation.Token));
 
             progress?.FinishLine();
 
             if (options.Json)
             {
+                string? formatName = TryReadFormatName(options.InputPath);
+
                 JsonConsole.Write(new
                 {
                     schemaVersion = 1,
@@ -74,7 +76,7 @@ public static class DecompressCommand
                     success = result.Success,
                     input = SafeFullPath(options.InputPath),
                     output = SafeFullPath(outputPath),
-                    format = "Cso1",
+                    format = formatName,
                     warnings = Array.Empty<string>(),
                     diagnostics = new
                     {
@@ -113,7 +115,7 @@ public static class DecompressCommand
         }
         finally
         {
-            Console.CancelKeyPress -= cancelHandler;
+            Console.CancelKeyPress -= CancelHandler;
         }
     }
 
@@ -187,6 +189,18 @@ public static class DecompressCommand
         return true;
     }
 
+    private static string? TryReadFormatName(string inputPath)
+    {
+        CsoHeaderReadResult result = new CsoHeaderReader().Read(inputPath);
+
+        if (!result.Success || result.Header is null)
+        {
+            return null;
+        }
+
+        return result.Header.IsCsoV2 ? "Cso2" : "Cso1";
+    }
+
     private static int ToExitCode(string? errorCode)
     {
         return errorCode switch
@@ -200,7 +214,15 @@ public static class DecompressCommand
             "OutputAccessDenied" or "DecompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InvalidMagic" or "HeaderTooSmall" or "InvalidHeaderSize" or "InvalidUncompressedSize" or "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidIndexShift"
                 => CliExitCodes.InvalidCsoHeader,
-            "IndexTableTruncated" or "IndexEntryTruncated" or "IndexOffsetsNotMonotonic" or "IndexOffsetPastEndOfFile" or "FinalOffsetPastEndOfFile" or "FirstDataOffsetBeforeIndexEnd" or "IndexEntryCountMismatch"
+            "IndexTableTruncated" or
+            "IndexEntryTruncated" or
+            "IndexOffsetsNotMonotonic" or
+            "IndexOffsetPastEndOfFile" or
+            "FinalOffsetPastEndOfFile" or
+            "FirstDataOffsetBeforeIndexEnd" or
+            "IndexEntryCountMismatch" or
+            "InvalidV2FinalSentinel" or
+            "CsoV2FinalSentinelHighBit"
                 => CliExitCodes.CorruptIndexTable,
             _ => CliExitCodes.DecompressionFailed
         };

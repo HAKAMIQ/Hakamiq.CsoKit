@@ -12,6 +12,9 @@ public sealed record CsoOutputSafetyResult(
 
     public static CsoOutputSafetyResult Fail(string errorCode, string errorMessage)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+
         return new CsoOutputSafetyResult(false, errorCode, errorMessage);
     }
 }

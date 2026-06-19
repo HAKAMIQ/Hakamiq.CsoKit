@@ -45,9 +45,23 @@ public static class InfoCommand
         }
 
         CsoHeader header = result.Header;
+        string formatName = header.IsCsoV2 ? "Cso2" : "Cso1";
 
         if (options.Json)
         {
+            object headerPayload = new
+            {
+                version = header.Version,
+                headerSize = header.HeaderSize,
+                effectiveHeaderSize = header.EffectiveHeaderSize,
+                uncompressedSize = header.UncompressedSize,
+                blockSize = header.BlockSize,
+                sectorCount = header.SectorCount,
+                indexShift = header.IndexShift,
+                indexEntryCount = header.IndexEntryCount,
+                indexTableSizeBytes = header.IndexTableSizeBytes
+            };
+
             JsonConsole.Write(new
             {
                 schemaVersion = 1,
@@ -55,35 +69,13 @@ public static class InfoCommand
                 success = true,
                 input = SafeFullPath(options.InputPath),
                 output = (string?)null,
-                format = "Cso1",
+                format = formatName,
                 warnings = Array.Empty<string>(),
                 diagnostics = new
                 {
-                    header = new
-                {
-                    version = header.Version,
-                    headerSize = header.HeaderSize,
-                    effectiveHeaderSize = header.EffectiveHeaderSize,
-                    uncompressedSize = header.UncompressedSize,
-                    blockSize = header.BlockSize,
-                    sectorCount = header.SectorCount,
-                    indexShift = header.IndexShift,
-                    indexEntryCount = header.IndexEntryCount,
-                    indexTableSizeBytes = header.IndexTableSizeBytes
-                    }
+                    header = headerPayload
                 },
-                header = new
-                {
-                    version = header.Version,
-                    headerSize = header.HeaderSize,
-                    effectiveHeaderSize = header.EffectiveHeaderSize,
-                    uncompressedSize = header.UncompressedSize,
-                    blockSize = header.BlockSize,
-                    sectorCount = header.SectorCount,
-                    indexShift = header.IndexShift,
-                    indexEntryCount = header.IndexEntryCount,
-                    indexTableSizeBytes = header.IndexTableSizeBytes
-                },
+                header = headerPayload,
                 error = (CsoCommandError?)null
             });
 
@@ -93,6 +85,7 @@ public static class InfoCommand
         Console.WriteLine("CSO Info");
         Console.WriteLine("--------");
         Console.WriteLine($"Input:              {SafeFullPath(options.InputPath)}");
+        Console.WriteLine($"Format:             {formatName}");
         Console.WriteLine($"Version:            {header.Version}");
         Console.WriteLine($"Header size:        {header.HeaderSize:N0}");
         Console.WriteLine($"Effective header:   {header.EffectiveHeaderSize:N0}");

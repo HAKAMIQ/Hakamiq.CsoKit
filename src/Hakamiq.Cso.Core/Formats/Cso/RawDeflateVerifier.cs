@@ -13,7 +13,7 @@ public static class RawDeflateVerifier
 
         try
         {
-            using MemoryStream input = new(compressed.ToArray());
+            using MemoryStream input = new(compressed.ToArray(), writable: false);
             using DeflateStream deflate = new(input, CompressionMode.Decompress);
 
             while (bytesWritten < output.Length)
@@ -28,7 +28,13 @@ public static class RawDeflateVerifier
                 bytesWritten += read;
             }
 
-            return bytesWritten == output.Length;
+            if (bytesWritten != output.Length)
+            {
+                return false;
+            }
+
+            Span<byte> extra = stackalloc byte[1];
+            return deflate.Read(extra) == 0;
         }
         catch (InvalidDataException)
         {

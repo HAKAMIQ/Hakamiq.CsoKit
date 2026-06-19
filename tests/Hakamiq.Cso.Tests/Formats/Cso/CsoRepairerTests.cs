@@ -5,6 +5,13 @@ namespace Hakamiq.Cso.Tests.Formats.Cso;
 
 public sealed class CsoRepairerTests
 {
+    private static readonly string[] UnsupportedContainerRepairErrorCodes =
+    [
+        "UnsupportedContainer",
+        "InvalidBlockSize",
+        "RepairNotPossible",
+    ];
+
     [Fact]
     public void Repair_WithAlignedIso_RebuildsGameSafeCso()
     {
@@ -17,7 +24,7 @@ public sealed class CsoRepairerTests
         {
             File.WriteAllBytes(isoPath, iso);
 
-            CsoRepairResult repair = new CsoRepairer().Repair(
+            CsoRepairResult repair = CsoRepairer.Repair(
                 new CsoRepairOptions(
                     isoPath,
                     csoPath,
@@ -54,11 +61,12 @@ public sealed class CsoRepairerTests
 
         try
         {
-            CsoRepairResult repair = new CsoRepairer().Repair(
+            CsoRepairResult repair = CsoRepairer.Repair(
                 new CsoRepairOptions(
                     inputPath,
                     outputCsoPath,
                     ForceOverwrite: false,
+                    DeepVerify: true,
                     CollectCodecReport: true,
                     CodecReportBlockLimit: 1));
 
@@ -89,8 +97,12 @@ public sealed class CsoRepairerTests
         {
             File.WriteAllBytes(isoPath, unalignedIso);
 
-            CsoRepairResult repair = new CsoRepairer().Repair(
-                new CsoRepairOptions(isoPath, csoPath, ForceOverwrite: false));
+            CsoRepairResult repair = CsoRepairer.Repair(
+                new CsoRepairOptions(
+                    isoPath,
+                    csoPath,
+                    ForceOverwrite: false,
+                    DeepVerify: true));
 
             Assert.False(repair.Success);
             Assert.Equal("IsoNotSectorAligned", repair.ErrorCode);
@@ -121,8 +133,12 @@ public sealed class CsoRepairerTests
                 output.Write([0xFF, 0xFF, 0xFF, 0xFF]);
             }
 
-            CsoRepairResult repair = new CsoRepairer().Repair(
-                new CsoRepairOptions(inputCsoPath, outputCsoPath, ForceOverwrite: false));
+            CsoRepairResult repair = CsoRepairer.Repair(
+                new CsoRepairOptions(
+                    inputCsoPath,
+                    outputCsoPath,
+                    ForceOverwrite: false,
+                    DeepVerify: true));
 
             Assert.False(repair.Success);
             Assert.Equal("ReDumpRequired", repair.ErrorCode);
@@ -152,12 +168,16 @@ public sealed class CsoRepairerTests
 
         try
         {
-            CsoRepairResult repair = new CsoRepairer().Repair(
-                new CsoRepairOptions(inputPath, outputCsoPath, ForceOverwrite: false));
+            CsoRepairResult repair = CsoRepairer.Repair(
+                new CsoRepairOptions(
+                    inputPath,
+                    outputCsoPath,
+                    ForceOverwrite: false,
+                    DeepVerify: true));
 
             Assert.False(repair.Success);
             Assert.False(File.Exists(outputCsoPath));
-            Assert.Contains(repair.ErrorCode, new[] { "UnsupportedContainer", "InvalidBlockSize", "RepairNotPossible" });
+            Assert.Contains(repair.ErrorCode, UnsupportedContainerRepairErrorCodes);
         }
         finally
         {
@@ -185,7 +205,7 @@ public sealed class CsoRepairerTests
 
         try
         {
-            CsoRepairResult repair = new CsoRepairer().Repair(
+            CsoRepairResult repair = CsoRepairer.Repair(
                 new CsoRepairOptions(
                     inputPath,
                     outputCsoPath,
@@ -212,15 +232,12 @@ public sealed class CsoRepairerTests
         }
     }
 
-
     [Theory]
     [InlineData("zso")]
     [InlineData("cso2")]
     public void Repair_WithCorruptLz4Container_ReturnsReDumpRequiredAndNoOutput(string kind)
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
+        byte[] original = CreateModuloPatternBytes(4096, 251);
         string inputPath = kind == "zso"
             ? CsoTestFileFactory.CreateTempZso(original)
             : CsoTestFileFactory.CreateTempCso2(original);
@@ -230,8 +247,12 @@ public sealed class CsoRepairerTests
         {
             CorruptFirstPayloadByte(inputPath);
 
-            CsoRepairResult repair = new CsoRepairer().Repair(
-                new CsoRepairOptions(inputPath, outputCsoPath, ForceOverwrite: false));
+            CsoRepairResult repair = CsoRepairer.Repair(
+                new CsoRepairOptions(
+                    inputPath,
+                    outputCsoPath,
+                    ForceOverwrite: false,
+                    DeepVerify: true));
 
             Assert.False(repair.Success);
             Assert.Equal("ReDumpRequired", repair.ErrorCode);
@@ -252,11 +273,20 @@ public sealed class CsoRepairerTests
 
         using FileStream stream = new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         stream.Position = firstPayloadOffset;
-        // Force a structurally invalid LZ4 sequence. Changing 0xF0 to 0xFF can still
-        // decode as the same literal-only block because the low nibble is ignored when
-        // the literal run consumes the whole payload. 0x00 makes the following bytes
-        // become an invalid match offset before any literal bytes are emitted.
+
         stream.WriteByte(0x00);
+    }
+
+    private static byte[] CreateModuloPatternBytes(int length, int modulo)
+    {
+        byte[] bytes = new byte[length];
+
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            bytes[index] = checked((byte)(index % modulo));
+        }
+
+        return bytes;
     }
 
     private static string CreateTempPath(string extension)

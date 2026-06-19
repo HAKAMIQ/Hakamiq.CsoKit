@@ -166,7 +166,9 @@ public sealed class CsoCompressor
 
                     if (!deepVerify.Success)
                     {
-                        CsoDeepVerifyIssue? issue = deepVerify.Issues.FirstOrDefault();
+                        CsoDeepVerifyIssue? issue = deepVerify.Issues.Count > 0
+    ? deepVerify.Issues[0]
+    : null;
                         SafeDelete(tempOutputPath);
 
                         return CsoCompressResult.Fail(
@@ -507,7 +509,7 @@ public sealed class CsoCompressor
             }
         });
 
-        SortedDictionary<int, SectorResult> pendingResults = new();
+        SortedDictionary<int, SectorResult> pendingResults = [];
         int nextBlockToWrite = 0;
         ulong totalWrittenSourceBytes = 0;
         int compressedBlocks = 0;

@@ -67,14 +67,6 @@ public sealed class CsoCompressionWorker
 
     private static bool IsAllZero(ReadOnlySpan<byte> source)
     {
-        foreach (byte value in source)
-        {
-            if (value != 0)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return source.IndexOfAnyExcept((byte)0) < 0;
     }
 }

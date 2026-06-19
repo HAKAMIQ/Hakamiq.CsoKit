@@ -16,16 +16,16 @@ public sealed record FormatDetectionResult(
     public static FormatDetectionResult Fail(string code, string message)
     {
         return new FormatDetectionResult(
-            Success: false,
+            false,
             DetectedDiscFormat.Unknown,
-            Magic: string.Empty,
-            HeaderSize: null,
-            UncompressedSize: null,
-            BlockSize: null,
-            IndexShift: null,
-            SectorCount: null,
-            Warnings: Array.Empty<string>(),
-            ErrorCode: code,
-            ErrorMessage: message);
+            string.Empty,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            code,
+            message);
     }
 }

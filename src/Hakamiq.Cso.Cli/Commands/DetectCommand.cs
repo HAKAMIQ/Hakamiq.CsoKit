@@ -12,7 +12,7 @@ public static class DetectCommand
             return CliExitCodes.InvalidArguments;
         }
 
-        FormatDetectionResult result = new FormatDetector().Detect(options.InputPath);
+        FormatDetectionResult result = FormatDetector.Detect(options.InputPath);
 
         if (options.Json)
         {

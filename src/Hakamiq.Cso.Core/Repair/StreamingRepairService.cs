@@ -24,6 +24,7 @@ public sealed class StreamingRepairService
                 options.DeepVerify || options.Profile == CsoCompressionProfile.GameSafe,
                 options.CollectCodecReport,
                 options.CodecReportBlockLimit,
+                options.Progress,
                 options.CancellationToken);
 
             if (!write.Success)

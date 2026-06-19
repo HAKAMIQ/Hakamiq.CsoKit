@@ -14,10 +14,11 @@ public sealed class CsoDecompressorCancellationTests
 
         CsoDecompressResult result = decompressor.Decompress(
             new CsoDecompressOptions(
-                "input.cso",
-                "output.iso",
+                InputPath: "input.cso",
+                OutputPath: "output.iso",
                 ForceOverwrite: false,
-                cancellation.Token));
+                Progress: null,
+                CancellationToken: cancellation.Token));
 
         Assert.False(result.Success);
         Assert.Equal("OperationCanceled", result.ErrorCode);

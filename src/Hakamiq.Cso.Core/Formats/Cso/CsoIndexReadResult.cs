@@ -8,11 +8,16 @@ public sealed record CsoIndexReadResult(
 {
     public static CsoIndexReadResult Ok(IReadOnlyList<CsoIndexEntry> entries)
     {
+        ArgumentNullException.ThrowIfNull(entries);
+
         return new CsoIndexReadResult(true, entries, null, null);
     }
 
     public static CsoIndexReadResult Fail(string errorCode, string errorMessage)
     {
-        return new CsoIndexReadResult(false, Array.Empty<CsoIndexEntry>(), errorCode, errorMessage);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+
+        return new CsoIndexReadResult(false, [], errorCode, errorMessage);
     }
 }

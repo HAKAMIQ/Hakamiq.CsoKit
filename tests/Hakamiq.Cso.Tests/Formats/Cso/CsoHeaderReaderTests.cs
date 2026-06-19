@@ -30,7 +30,6 @@ public sealed class CsoHeaderReaderTests
         Assert.Equal(358400, result.Header.SectorCount);
     }
 
-
     [Fact]
     public void Read_WithLegacyCsoV1VersionZero_ReturnsHeader()
     {

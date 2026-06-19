@@ -2,20 +2,16 @@ using Hakamiq.Cso.Core.Native;
 
 namespace Hakamiq.Cso.Core.Formats.Cso.Codecs.Native;
 
-public sealed class NativeZlibTrial : ICsoCodecTrial
+public sealed class NativeZlibTrial(
+    CsoCodecKind kind,
+    string name,
+    NativeCsoRawCodec codec) : ICsoCodecTrial
 {
-    private readonly NativeCsoRawCodec codec;
+    private readonly NativeCsoRawCodec rawCodec = codec;
 
-    public NativeZlibTrial(CsoCodecKind kind, string name, NativeCsoRawCodec codec)
-    {
-        Kind = kind;
-        Name = name;
-        this.codec = codec;
-    }
+    public CsoCodecKind Kind { get; } = kind;
 
-    public CsoCodecKind Kind { get; }
-
-    public string Name { get; }
+    public string Name { get; } = name;
 
     public bool TryCompressRawDeflate(
         ReadOnlySpan<byte> input,
@@ -33,17 +29,28 @@ public sealed class NativeZlibTrial : ICsoCodecTrial
             return false;
         }
 
-        if (NativeCsoRuntime.TryDeflateRaw(codec, level: 9, strategy: 0, input, out byte[] compressed))
+        if (!NativeCsoRuntime.TryDeflateRaw(rawCodec, level: 9, strategy: 0, input, out byte[] compressed) ||
+            compressed.Length == 0)
         {
-            result = new CsoCodecTrialResult(Kind, Name, compressed, compressed.Length, Success: true);
-            return true;
+            result = CsoCodecTrialResult.Fail(
+                Kind,
+                Name,
+                "NativeCodecUnavailable",
+                "Native zlib raw deflate failed for this block.");
+            return false;
         }
 
-        result = CsoCodecTrialResult.Fail(
-            Kind,
-            Name,
-            "NativeCodecUnavailable",
-            "Native zlib raw deflate failed for this block.");
-        return false;
+        if (!RawDeflateVerifier.RoundtripEquals(compressed, input, input.Length))
+        {
+            result = CsoCodecTrialResult.Fail(
+                Kind,
+                Name,
+                "NativeCodecRoundtripFailed",
+                "Native zlib raw deflate failed roundtrip validation.");
+            return false;
+        }
+
+        result = new CsoCodecTrialResult(Kind, Name, compressed, compressed.Length, Success: true);
+        return true;
     }
 }

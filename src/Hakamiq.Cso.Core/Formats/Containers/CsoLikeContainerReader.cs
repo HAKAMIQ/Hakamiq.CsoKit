@@ -8,6 +8,7 @@ public abstract class CsoLikeContainerReader : IBlockContainerReader
     private readonly FileStream input;
     private readonly CsoHeader header;
     private readonly IReadOnlyList<CsoIndexEntry> entries;
+    private bool disposed;
 
     protected CsoLikeContainerReader(
         string inputPath,
@@ -25,7 +26,7 @@ public abstract class CsoLikeContainerReader : IBlockContainerReader
 
         try
         {
-            byte[] magicBytes = expectedMagic.Select(static c => (byte)c).ToArray();
+            byte[] magicBytes = GetAsciiBytes(expectedMagic);
             (header, entries) = CsoLikeHeaderReader.Read(stream, magicBytes, acceptsVersion, formatName);
             input = stream;
         }
@@ -48,7 +49,7 @@ public abstract class CsoLikeContainerReader : IBlockContainerReader
 
     public int ReadBlock(int blockIndex, Span<byte> output)
     {
-        ObjectDisposedException.ThrowIf(input is null, this);
+        ObjectDisposedException.ThrowIf(disposed, this);
 
         if ((uint)blockIndex >= (uint)BlockCount)
         {
@@ -90,7 +91,8 @@ public abstract class CsoLikeContainerReader : IBlockContainerReader
 
     public void Dispose()
     {
-        input.Dispose();
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 
     protected abstract int ReadPayload(
@@ -99,6 +101,21 @@ public abstract class CsoLikeContainerReader : IBlockContainerReader
         ulong physicalSize,
         int blockIndex,
         Span<byte> output);
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            input.Dispose();
+        }
+
+        disposed = true;
+    }
 
     protected static byte[] ReadPayloadBytes(
         FileStream input,
@@ -154,6 +171,25 @@ public abstract class CsoLikeContainerReader : IBlockContainerReader
         }
 
         return bytesWritten;
+    }
+
+    private static byte[] GetAsciiBytes(string value)
+    {
+        byte[] bytes = new byte[value.Length];
+
+        for (int index = 0; index < value.Length; index++)
+        {
+            char character = value[index];
+
+            if (character > 0x7F)
+            {
+                throw new ArgumentException("Container magic must be ASCII.", nameof(value));
+            }
+
+            bytes[index] = (byte)character;
+        }
+
+        return bytes;
     }
 
     private int GetExpectedBlockBytes(int blockIndex)

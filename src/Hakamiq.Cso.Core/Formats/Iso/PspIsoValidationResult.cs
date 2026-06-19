@@ -36,7 +36,7 @@ public sealed record PspIsoValidationResult(
         string? pspSystemVersion = null)
     {
         return new PspIsoValidationResult(
-            Success: false,
+            false,
             inputPath,
             inputBytes,
             paddingBytes,
@@ -45,7 +45,7 @@ public sealed record PspIsoValidationResult(
             hasParamSfo,
             hasEbootBin,
             issues,
-            warnings ?? Array.Empty<string>(),
+            warnings ?? [],
             hasPspGame,
             discIdFromUmdData,
             discIdFromParamSfo,

@@ -3,13 +3,13 @@ using System.Text;
 
 namespace Hakamiq.Cso.Core.Formats.Psp;
 
-public sealed class PspParamSfoReader
+public static class PspParamSfoReader
 {
     private const int HeaderSize = 20;
     private const int EntrySize = 16;
     private const uint Magic = 0x46535000;
 
-    public bool TryRead(ReadOnlySpan<byte> bytes, out PspDiscIdentity identity, out string? warning)
+    public static bool TryRead(ReadOnlySpan<byte> bytes, out PspDiscIdentity identity, out string? warning)
     {
         identity = PspDiscIdentity.Empty;
         warning = null;
@@ -30,9 +30,9 @@ public sealed class PspParamSfoReader
                 return false;
             }
 
-            uint keyTableOffset = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(8, 4));
-            uint dataTableOffset = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(12, 4));
-            uint entryCount = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(16, 4));
+            uint keyTableOffset = BinaryPrimitives.ReadUInt32LittleEndian(bytes[8..12]);
+            uint dataTableOffset = BinaryPrimitives.ReadUInt32LittleEndian(bytes[12..16]);
+            uint entryCount = BinaryPrimitives.ReadUInt32LittleEndian(bytes[16..20]);
 
             if (entryCount > 1024)
             {
@@ -42,21 +42,24 @@ public sealed class PspParamSfoReader
 
             ulong tableEnd = checked((ulong)HeaderSize + ((ulong)entryCount * EntrySize));
 
-            if (tableEnd > (ulong)bytes.Length || keyTableOffset >= (uint)bytes.Length || dataTableOffset >= (uint)bytes.Length)
+            if (tableEnd > (ulong)bytes.Length ||
+                keyTableOffset >= (uint)bytes.Length ||
+                dataTableOffset >= (uint)bytes.Length)
             {
                 warning = "PARAM.SFO table offsets are outside the file.";
                 return false;
             }
 
+            int entryCountValue = checked((int)entryCount);
             Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
 
-            for (int index = 0; index < entryCount; index++)
+            for (int index = 0; index < entryCountValue; index++)
             {
                 int entryOffset = checked(HeaderSize + (index * EntrySize));
-                ReadOnlySpan<byte> entry = bytes.Slice(entryOffset, EntrySize);
+                ReadOnlySpan<byte> entry = bytes[entryOffset..(entryOffset + EntrySize)];
                 ushort keyOffset = BinaryPrimitives.ReadUInt16LittleEndian(entry[..2]);
-                uint dataLength = BinaryPrimitives.ReadUInt32LittleEndian(entry.Slice(4, 4));
-                uint dataOffset = BinaryPrimitives.ReadUInt32LittleEndian(entry.Slice(12, 4));
+                uint dataLength = BinaryPrimitives.ReadUInt32LittleEndian(entry[4..8]);
+                uint dataOffset = BinaryPrimitives.ReadUInt32LittleEndian(entry[12..16]);
 
                 if (dataLength == 0)
                 {
@@ -84,7 +87,7 @@ public sealed class PspParamSfoReader
                     continue;
                 }
 
-                ReadOnlySpan<byte> valueBytes = bytes.Slice((int)absoluteDataOffset, checked((int)dataLength));
+                ReadOnlySpan<byte> valueBytes = bytes[(int)absoluteDataOffset..(int)absoluteDataEnd];
                 string value = ReadNullTerminatedUtf8(valueBytes);
 
                 if (!string.IsNullOrWhiteSpace(value))

@@ -15,10 +15,15 @@ public sealed class CsoBestCandidateSelector
 
     public CsoBestCandidateSelector(CsoCompressionProfile profile)
     {
+        if (!Enum.IsDefined(profile))
+        {
+            throw new ArgumentOutOfRangeException(nameof(profile), profile, "Compression profile is not supported.");
+        }
+
         this.profile = profile;
     }
 
-    public SectorResult Select(SectorJob job, SectorResult candidate)
+    public static SectorResult Select(SectorJob job, SectorResult candidate)
     {
         ValidateCandidate(job, candidate);
 

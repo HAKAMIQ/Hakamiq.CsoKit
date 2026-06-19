@@ -20,27 +20,21 @@ public sealed record CsoMeasureResult(
         int compressedBlocks,
         int storedBlocks)
     {
-        ulong savedBytes = originalBytes > estimatedBytes
-            ? originalBytes - estimatedBytes
-            : 0;
+        ValidateBlockCounts(totalBlocks, compressedBlocks, storedBlocks);
 
-        ulong growthBytes = estimatedBytes > originalBytes
-            ? estimatedBytes - originalBytes
-            : 0;
+        if (compressedBlocks + storedBlocks != totalBlocks)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(storedBlocks),
+                "Compressed and stored block counts must equal the total block count.");
+        }
 
-        double ratio = originalBytes == 0
-            ? 0
-            : (double)estimatedBytes / originalBytes;
-
-        return new CsoMeasureResult(
-            true,
-            null,
-            null,
+        return Create(
+            success: true,
+            errorCode: null,
+            errorMessage: null,
             originalBytes,
             estimatedBytes,
-            savedBytes,
-            growthBytes,
-            ratio,
             totalBlocks,
             compressedBlocks,
             storedBlocks);
@@ -55,17 +49,85 @@ public sealed record CsoMeasureResult(
         int compressedBlocks = 0,
         int storedBlocks = 0)
     {
-        return new CsoMeasureResult(
-            false,
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+        ValidateBlockCounts(totalBlocks, compressedBlocks, storedBlocks);
+
+        return Create(
+            success: false,
             errorCode,
             errorMessage,
             originalBytes,
             estimatedBytes,
-            0,
-            0,
-            0,
             totalBlocks,
             compressedBlocks,
             storedBlocks);
+    }
+
+    private static CsoMeasureResult Create(
+        bool success,
+        string? errorCode,
+        string? errorMessage,
+        ulong originalBytes,
+        ulong estimatedBytes,
+        int totalBlocks,
+        int compressedBlocks,
+        int storedBlocks)
+    {
+        ulong savedBytes = originalBytes > estimatedBytes
+            ? originalBytes - estimatedBytes
+            : 0;
+
+        ulong growthBytes = estimatedBytes > originalBytes
+            ? estimatedBytes - originalBytes
+            : 0;
+
+        double ratio = originalBytes == 0
+            ? 0
+            : (double)estimatedBytes / originalBytes;
+
+        return new CsoMeasureResult(
+            success,
+            errorCode,
+            errorMessage,
+            originalBytes,
+            estimatedBytes,
+            savedBytes,
+            growthBytes,
+            ratio,
+            totalBlocks,
+            compressedBlocks,
+            storedBlocks);
+    }
+
+    private static void ValidateBlockCounts(
+        int totalBlocks,
+        int compressedBlocks,
+        int storedBlocks)
+    {
+        if (totalBlocks < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(totalBlocks), "Total block count cannot be negative.");
+        }
+
+        if (compressedBlocks < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(compressedBlocks), "Compressed block count cannot be negative.");
+        }
+
+        if (storedBlocks < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(storedBlocks), "Stored block count cannot be negative.");
+        }
+
+        if (compressedBlocks > totalBlocks)
+        {
+            throw new ArgumentOutOfRangeException(nameof(compressedBlocks), "Compressed block count cannot exceed total block count.");
+        }
+
+        if (storedBlocks > totalBlocks)
+        {
+            throw new ArgumentOutOfRangeException(nameof(storedBlocks), "Stored block count cannot exceed total block count.");
+        }
     }
 }

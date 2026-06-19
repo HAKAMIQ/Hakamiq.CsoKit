@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0",
+    [string]$Version = "0.6.0",
     [string]$Runtime = "win-x64",
     [string]$InputIso,
     [switch]$SkipRealIsoGates,
@@ -169,6 +169,7 @@ $VerifyReleaseScript = Join-Path $PSScriptRoot "Verify-Release.ps1"
 $PublishSourceScript = Join-Path $PSScriptRoot "Publish-SourcePackage.ps1"
 $CliProject = Join-Path $RepoRoot "src\Hakamiq.Cso.Cli\Hakamiq.Cso.Cli.csproj"
 $CoreProject = Join-Path $RepoRoot "src\Hakamiq.Cso.Core\Hakamiq.Cso.Core.csproj"
+$AppProject = Join-Path $RepoRoot "src\Hakamiq.Cso.App\Hakamiq.Cso.App.csproj"
 $PublishDir = Join-Path (Join-Path $RepoRoot "artifacts\publish") $Runtime
 $ReleaseZip = Join-Path (Join-Path $RepoRoot "artifacts\release") "hakamiq-csokit-$Version-$Runtime.zip"
 $SourceZip = Join-Path (Join-Path $RepoRoot "artifacts\source") "hakamiq-csokit-$Version-source.zip"
@@ -203,6 +204,7 @@ if (-not $AllowDirty) {
 Assert-NoTrackedArtifacts -RepoRoot $RepoRoot
 Assert-ProjectVersion -ProjectPath $CliProject -ExpectedVersion $Version -Name "CLI"
 Assert-ProjectVersion -ProjectPath $CoreProject -ExpectedVersion $Version -Name "Core"
+Assert-ProjectVersion -ProjectPath $AppProject -ExpectedVersion $Version -Name "App"
 
 if (-not $SkipRealIsoGates) {
     if ([string]::IsNullOrWhiteSpace($InputIso)) {

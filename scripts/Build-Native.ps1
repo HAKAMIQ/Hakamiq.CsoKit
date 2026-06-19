@@ -7,13 +7,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Find-VsDevCmd {
-    $candidates = New-Object System.Collections.Generic.List[string]
+    $candidates = [System.Collections.Generic.List[string]]::new()
 
     $programFilesX86 = ${env:ProgramFiles(x86)}
     if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
         $vswherePath = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
 
-        if (Test-Path $vswherePath) {
+        if (Test-Path -LiteralPath $vswherePath) {
             $installationPaths = @(
                 & $vswherePath -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
                 & $vswherePath -latest -products * -property installationPath
@@ -28,12 +28,12 @@ function Find-VsDevCmd {
     $roots = @(
         (Join-Path $env:ProgramFiles "Microsoft Visual Studio"),
         (Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio")
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path $_) }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_) }
 
     foreach ($root in $roots) {
-        Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+        Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
             ForEach-Object {
-                Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue |
+                Get-ChildItem -LiteralPath $_.FullName -Directory -ErrorAction SilentlyContinue |
                     ForEach-Object {
                         $candidates.Add((Join-Path $_.FullName "Common7\Tools\VsDevCmd.bat"))
                     }
@@ -41,7 +41,7 @@ function Find-VsDevCmd {
     }
 
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
-        if (Test-Path $candidate) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return $candidate
         }
     }
@@ -49,11 +49,40 @@ function Find-VsDevCmd {
     return $null
 }
 
+function Assert-NativeSourceLayout {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $requiredFiles = @(
+        "native\Hakamiq.Cso.Native\CMakeLists.txt",
+        "native\Hakamiq.Cso.Native\src\hakamiq_cso_native.cpp",
+        "native\Hakamiq.Cso.Native\include\hakamiq_cso_native.h",
+        "native\third_party\zopfli\src\zopfli\zopfli_lib.c"
+    )
+
+    foreach ($relativePath in $requiredFiles) {
+        $fullPath = Join-Path $RepoRoot $relativePath
+
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+            throw "Native source layout is incomplete. Missing: $relativePath"
+        }
+    }
+}
+
 function Invoke-CMakeBuild {
     param(
+        [Parameter(Mandatory = $true)]
         [string]$CMakeExe,
+
+        [Parameter(Mandatory = $true)]
         [string]$NativeRoot,
+
+        [Parameter(Mandatory = $true)]
         [string]$BuildDir,
+
+        [Parameter(Mandatory = $true)]
         [string]$Configuration
     )
 
@@ -74,21 +103,19 @@ if ($Platform -ne "x64") {
     throw "Unsupported platform: $Platform"
 }
 
-$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$NativeRoot = Join-Path $RepoRoot "native\Hakamiq.Cso.Native"
-$BuildDir = Join-Path $RepoRoot "artifacts\native-build\win-x64"
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$nativeRoot = Join-Path $repoRoot "native\Hakamiq.Cso.Native"
+$buildDir = Join-Path $repoRoot "artifacts\native-build\win-x64"
 
 Write-Host "Hakamiq CsoKit Native Builder"
 Write-Host "Configuration: $Configuration"
 Write-Host "Platform:      $Platform"
 Write-Host ""
 
-if (-not (Test-Path $NativeRoot)) {
-    throw "Native project directory was not found: $NativeRoot"
-}
+Assert-NativeSourceLayout -RepoRoot $repoRoot
 
 $cmakeBin = "C:\Program Files\CMake\bin"
-if (Test-Path $cmakeBin) {
+if (Test-Path -LiteralPath $cmakeBin) {
     $env:Path = "$cmakeBin;$env:Path"
 }
 
@@ -100,32 +127,32 @@ if (-not $cmakeCommand) {
 Write-Host "CMake: $($cmakeCommand.Source)"
 Write-Host ""
 
-Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $buildDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "[1/2] Build native backend using CMake"
 $directBuildSucceeded = Invoke-CMakeBuild `
     -CMakeExe $cmakeCommand.Source `
-    -NativeRoot $NativeRoot `
-    -BuildDir $BuildDir `
+    -NativeRoot $nativeRoot `
+    -BuildDir $buildDir `
     -Configuration $Configuration
 
 if (-not $directBuildSucceeded) {
     Write-Host ""
     Write-Host "Direct CMake build failed. Trying Visual Studio Developer Command Prompt fallback."
 
-    Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $buildDir -Recurse -Force -ErrorAction SilentlyContinue
 
-    $VsDevCmd = Find-VsDevCmd
-    if ([string]::IsNullOrWhiteSpace($VsDevCmd)) {
+    $vsDevCmd = Find-VsDevCmd
+    if ([string]::IsNullOrWhiteSpace($vsDevCmd)) {
         throw "Visual Studio Developer Command Prompt was not found. Install Visual Studio with C++ build tools."
     }
 
-    Write-Host "VsDevCmd: $VsDevCmd"
+    Write-Host "VsDevCmd: $vsDevCmd"
     Write-Host ""
 
-    $cmdLine = '"' + $VsDevCmd + '" -arch=amd64 -host_arch=amd64' +
-        ' && "' + $cmakeCommand.Source + '" -S "' + $NativeRoot + '" -B "' + $BuildDir + '" -A x64' +
-        ' && "' + $cmakeCommand.Source + '" --build "' + $BuildDir + '" --config ' + $Configuration
+    $cmdLine = '"' + $vsDevCmd + '" -arch=amd64 -host_arch=amd64' +
+        ' && "' + $cmakeCommand.Source + '" -S "' + $nativeRoot + '" -B "' + $buildDir + '" -A x64' +
+        ' && "' + $cmakeCommand.Source + '" --build "' + $buildDir + '" --config ' + $Configuration
 
     cmd.exe /d /s /c $cmdLine
 
@@ -134,13 +161,13 @@ if (-not $directBuildSucceeded) {
     }
 }
 
-$DllPath = Join-Path $BuildDir "$Configuration\Hakamiq.Cso.Native.dll"
+$dllPath = Join-Path $buildDir "$Configuration\Hakamiq.Cso.Native.dll"
 
-if (-not (Test-Path $DllPath)) {
-    throw "Native DLL was not produced: $DllPath"
+if (-not (Test-Path -LiteralPath $dllPath -PathType Leaf)) {
+    throw "Native DLL was not produced: $dllPath"
 }
 
 Write-Host "[2/2] Validate native DLL"
 Write-Host ""
 Write-Host "[PASS] Native DLL built"
-Write-Host "DLL: $DllPath"
+Write-Host "DLL: $dllPath"

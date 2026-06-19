@@ -50,8 +50,9 @@ public sealed class Iso9660Reader
         }
 
         Iso9660Entry root = ReadRootDirectory();
-        string[] parts = path
-            .Split(PathSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] parts = path.Split(
+            PathSeparators,
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         Iso9660Entry current = root;
 
@@ -64,7 +65,18 @@ public sealed class Iso9660Reader
 
             string part = NormalizeName(rawPart);
             IReadOnlyList<Iso9660Entry> entries = ReadDirectory(current);
-            Iso9660Entry? next = entries.FirstOrDefault(candidate => NormalizeName(candidate.Name) == part);
+            Iso9660Entry? next = null;
+
+            for (int index = 0; index < entries.Count; index++)
+            {
+                Iso9660Entry candidate = entries[index];
+
+                if (string.Equals(NormalizeName(candidate.Name), part, StringComparison.Ordinal))
+                {
+                    next = candidate;
+                    break;
+                }
+            }
 
             if (next is null)
             {
@@ -77,8 +89,6 @@ public sealed class Iso9660Reader
         entry = current;
         return true;
     }
-
-
 
     public byte[] ReadFile(Iso9660Entry file, int maxBytes)
     {
@@ -131,7 +141,7 @@ public sealed class Iso9660Reader
             throw new EndOfStreamException("ISO9660 directory extends beyond the end of the file.");
         }
 
-        byte[] buffer = new byte[directory.Size];
+        byte[] buffer = new byte[checked((int)directory.Size)];
         input.Position = checked((long)start);
         ReadExactly(input, buffer);
 

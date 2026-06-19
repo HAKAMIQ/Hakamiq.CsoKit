@@ -29,7 +29,7 @@ public static class CsoCompressJsonContract
             input,
             (string?)null,
             "RawIso",
-            Array.Empty<string>(),
+            [],
             new
             {
                 mode = "measure",
@@ -37,7 +37,9 @@ public static class CsoCompressJsonContract
                 blockSize,
                 workerCount,
                 useZopfli,
-                deepVerify
+                deepVerify,
+                codecReport,
+                codecReportBlockLimit
             },
             new CsoCompressJsonOptions(
                 CsoProfileOutput.From(profileSettings),
@@ -47,6 +49,7 @@ public static class CsoCompressJsonContract
                 workerCount,
                 useZopfli,
                 deepVerify,
+                codecReport,
                 codecReportBlockLimit),
             new CsoMeasureJsonMetrics(
                 result.OriginalBytes,
@@ -85,7 +88,7 @@ public static class CsoCompressJsonContract
             input,
             output,
             "Cso1",
-            Array.Empty<string>(),
+            [],
             new
             {
                 mode = "write",
@@ -105,6 +108,7 @@ public static class CsoCompressJsonContract
                 workerCount,
                 useZopfli,
                 deepVerify,
+                codecReport,
                 codecReportBlockLimit),
             new CsoWriteJsonMetrics(
                 result.BytesRead,
@@ -127,7 +131,7 @@ public static class CsoCompressJsonContract
             Input: (string?)null,
             Output: (string?)null,
             Format: (string?)null,
-            Warnings: Array.Empty<string>(),
+            Warnings: [],
             Diagnostics: new { },
             Error("InvalidArguments", message));
     }
@@ -148,6 +152,7 @@ public sealed record CsoCompressJsonOptions(
     int Threads,
     bool Zopfli,
     bool DeepVerify,
+    bool CodecReport,
     int CodecReportBlockLimit = 64);
 
 public sealed record CsoMeasureJsonMetrics(

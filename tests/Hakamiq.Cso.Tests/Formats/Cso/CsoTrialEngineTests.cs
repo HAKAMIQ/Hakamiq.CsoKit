@@ -9,9 +9,13 @@ public sealed class CsoTrialEngineTests
     [Fact]
     public void Compress_SelectsSmallestValidCandidate()
     {
-        byte[] source = Enumerable.Repeat((byte)0x41, 2048).ToArray();
+        byte[] source = new byte[2048];
+        Array.Fill(source, (byte)0x41);
+
         byte[] small = CompressRawDeflate(source);
-        byte[] large = small.Concat(new byte[] { 0, 0, 0, 0 }).ToArray();
+        byte[] large = new byte[small.Length + 4];
+        small.CopyTo(large, 0);
+
         SectorJob job = new(0, 0, source.Length, source);
 
         CsoTrialEngine engine = new(
@@ -31,7 +35,9 @@ public sealed class CsoTrialEngineTests
     [Fact]
     public void Compress_RejectsCandidateThatDoesNotRoundtrip()
     {
-        byte[] source = Enumerable.Repeat((byte)0x5A, 2048).ToArray();
+        byte[] source = new byte[2048];
+        Array.Fill(source, (byte)0x5A);
+
         SectorJob job = new(0, 0, source.Length, source);
 
         CsoTrialEngine engine = new(
@@ -56,20 +62,14 @@ public sealed class CsoTrialEngineTests
         return compressed.ToArray();
     }
 
-    private sealed class FixedTrial : ICsoCodecTrial
+    private sealed class FixedTrial(
+        CsoCodecKind kind,
+        string name,
+        byte[] output) : ICsoCodecTrial
     {
-        private readonly byte[] output;
+        public CsoCodecKind Kind { get; } = kind;
 
-        public FixedTrial(CsoCodecKind kind, string name, byte[] output)
-        {
-            Kind = kind;
-            Name = name;
-            this.output = output;
-        }
-
-        public CsoCodecKind Kind { get; }
-
-        public string Name { get; }
+        public string Name { get; } = name;
 
         public bool TryCompressRawDeflate(
             ReadOnlySpan<byte> input,

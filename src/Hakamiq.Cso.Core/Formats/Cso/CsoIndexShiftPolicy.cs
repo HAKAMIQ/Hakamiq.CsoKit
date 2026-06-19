@@ -2,8 +2,8 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public static class CsoIndexShiftPolicy
 {
-    public const uint OffsetMask = 0x7FFFFFFF;
-    public const uint StoredFlag = 0x80000000;
+    public const uint OffsetMask = 0x7FFF_FFFF;
+    public const uint StoredFlag = 0x8000_0000;
 
     public static byte ComputeShift(ulong worstOffset)
     {
@@ -24,6 +24,8 @@ public static class CsoIndexShiftPolicy
 
     public static uint EncodeOffset(ulong offset, bool stored, byte shift)
     {
+        ValidateShift(shift);
+
         ulong alignment = 1UL << shift;
 
         if (shift > 0 && (offset % alignment) != 0)
@@ -46,5 +48,18 @@ public static class CsoIndexShiftPolicy
         }
 
         return raw;
+    }
+
+    private static void ValidateShift(byte shift)
+    {
+        if (shift > CsoConstants.MaxSupportedIndexShift)
+        {
+            throw new InvalidDataException("CSO index shift exceeds the maximum supported value.");
+        }
+
+        if (shift >= 64)
+        {
+            throw new InvalidDataException("CSO index shift must be smaller than 64.");
+        }
     }
 }

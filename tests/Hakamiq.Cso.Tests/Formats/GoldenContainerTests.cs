@@ -26,7 +26,7 @@ public sealed class GoldenContainerTests
 
         try
         {
-            using IBlockContainerReader reader = CreateReader(path, new FormatDetector().Detect(path).Format);
+            using IBlockContainerReader reader = CreateReader(path, FormatDetector.Detect(path).Format);
             byte[] actual = ReadAll(reader);
             Assert.Equal(logical, actual);
         }
@@ -43,7 +43,7 @@ public sealed class GoldenContainerTests
 
         try
         {
-            FormatDetectionResult result = new FormatDetector().Detect(path);
+            FormatDetectionResult result = FormatDetector.Detect(path);
 
             Assert.True(result.Success);
             Assert.Equal(DetectedDiscFormat.Unknown, result.Format);
@@ -61,7 +61,7 @@ public sealed class GoldenContainerTests
 
         try
         {
-            FormatDetectionResult result = new FormatDetector().Detect(path);
+            FormatDetectionResult result = FormatDetector.Detect(path);
 
             Assert.True(result.Success);
             Assert.Equal(DetectedDiscFormat.RawIso, result.Format);

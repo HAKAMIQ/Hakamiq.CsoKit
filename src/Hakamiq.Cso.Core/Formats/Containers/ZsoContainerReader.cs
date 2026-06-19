@@ -3,17 +3,12 @@ using Hakamiq.Cso.Core.Formats.DiscImage;
 
 namespace Hakamiq.Cso.Core.Formats.Containers;
 
-public sealed class ZsoContainerReader : CsoLikeContainerReader
+public sealed class ZsoContainerReader(string inputPath) : CsoLikeContainerReader(
+    inputPath,
+    "ZISO",
+    static version => version is 0 or 1 or 2,
+    "ZSO")
 {
-    public ZsoContainerReader(string inputPath)
-        : base(
-            inputPath,
-            "ZISO",
-            static version => version is 0 or 1 or 2,
-            "ZSO")
-    {
-    }
-
     public override DetectedDiscFormat Format => DetectedDiscFormat.Zso;
 
     protected override int ReadPayload(

@@ -9,10 +9,7 @@ public sealed class IsoContainerReader : IBlockContainerReader
 
     public IsoContainerReader(string inputPath, uint blockSize = CsoCompressor.DefaultBlockSize)
     {
-        if (blockSize == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(blockSize));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(blockSize);
 
         input = new FileStream(
             inputPath,
@@ -55,7 +52,7 @@ public sealed class IsoContainerReader : IBlockContainerReader
 
         while (total < expectedBytes)
         {
-            int read = input.Read(output.Slice(total, expectedBytes - total));
+            int read = input.Read(output[total..expectedBytes]);
 
             if (read == 0)
             {

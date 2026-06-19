@@ -3,24 +3,18 @@ using Hakamiq.Cso.Core.Compression.Trials;
 
 namespace Hakamiq.Cso.Core.Formats.Cso.Codecs;
 
-public sealed class CsoTrialEngine
+public sealed class CsoTrialEngine(
+    IReadOnlyList<ICsoCodecTrial> trials,
+    CsoBestCandidateSelector selector)
 {
-    private readonly IReadOnlyList<ICsoCodecTrial> trials;
-    private readonly CsoBestCandidateSelector selector;
-
-    public CsoTrialEngine(
-        IReadOnlyList<ICsoCodecTrial> trials,
-        CsoBestCandidateSelector selector)
-    {
-        this.trials = trials ?? throw new ArgumentNullException(nameof(trials));
-        this.selector = selector ?? throw new ArgumentNullException(nameof(selector));
-    }
+    private readonly IReadOnlyList<ICsoCodecTrial> codecTrials = trials ?? throw new ArgumentNullException(nameof(trials));
+    private readonly CsoBestCandidateSelector candidateSelector = selector ?? throw new ArgumentNullException(nameof(selector));
 
     public SectorResult Compress(SectorJob job)
     {
-        List<SectorResult> candidates = new(trials.Count);
+        List<SectorResult> candidates = new(codecTrials.Count);
 
-        foreach (ICsoCodecTrial trial in trials)
+        foreach (ICsoCodecTrial trial in codecTrials)
         {
             if (!trial.TryCompressRawDeflate(job.SourceSpan, out CsoCodecTrialResult result) ||
                 !result.Success)
@@ -44,15 +38,15 @@ public sealed class CsoTrialEngine
             candidates.Add(ToSectorResult(job, result));
         }
 
-        return selector.Select(job, candidates);
+        return candidateSelector.Select(job, candidates);
     }
 
     public SectorResult CompressWithReport(SectorJob job)
     {
-        List<SectorResult> candidates = new(trials.Count);
-        List<CodecTrialCandidateResult> candidateReports = new(trials.Count + 1);
+        List<SectorResult> candidates = new(codecTrials.Count);
+        List<CodecTrialCandidateResult> candidateReports = new(codecTrials.Count + 1);
 
-        foreach (ICsoCodecTrial trial in trials)
+        foreach (ICsoCodecTrial trial in codecTrials)
         {
             Stopwatch encodeTimer = Stopwatch.StartNew();
             bool produced = trial.TryCompressRawDeflate(job.SourceSpan, out CsoCodecTrialResult result);
@@ -149,7 +143,7 @@ public sealed class CsoTrialEngine
                 fallbackReason: null));
         }
 
-        SectorResult selected = selector.Select(job, candidates);
+        SectorResult selected = candidateSelector.Select(job, candidates);
         bool storedFallback = selected.IsStored;
         string selectedCodec = selected.EffectiveCodecName;
 
@@ -169,9 +163,12 @@ public sealed class CsoTrialEngine
                 FallbackReason: candidates.Count == 0 ? "No candidate passed and beat stored bytes." : "Stored bytes won size policy."));
         }
 
-        IReadOnlyList<CodecTrialCandidateResult> finalized = candidateReports
-            .Select(candidate => FinalizeCandidateReport(candidate, selected, selectedCodec))
-            .ToArray();
+        CodecTrialCandidateResult[] finalized = new CodecTrialCandidateResult[candidateReports.Count];
+
+        for (int index = 0; index < finalized.Length; index++)
+        {
+            finalized[index] = FinalizeCandidateReport(candidateReports[index], selected, selectedCodec);
+        }
 
         CodecTrialReport report = new(
             job.BlockIndex,

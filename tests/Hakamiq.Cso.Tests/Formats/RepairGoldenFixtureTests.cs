@@ -25,7 +25,7 @@ public sealed class RepairGoldenFixtureTests
 
         try
         {
-            CsoRepairResult repair = new CsoRepairer().Repair(new CsoRepairOptions(
+            CsoRepairResult repair = CsoRepairer.Repair(new CsoRepairOptions(
                 input,
                 output,
                 ForceOverwrite: false,

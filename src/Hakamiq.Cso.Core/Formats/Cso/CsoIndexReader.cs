@@ -4,6 +4,8 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed class CsoIndexReader
 {
+    private const long CsoV1IndexStart = 24;
+
     public CsoIndexReadResult Read(string inputPath, CsoHeader header)
     {
         ArgumentNullException.ThrowIfNull(header);
@@ -65,9 +67,20 @@ public sealed class CsoIndexReader
             return CsoIndexReadResult.Fail("TooManyIndexEntries", "CSO index table is too large.");
         }
 
-        long indexStart = header.EffectiveHeaderSize;
+        long indexStart = ResolveIndexStart(header);
         long indexSize = header.IndexTableSizeBytes;
-        long indexEnd = checked(indexStart + indexSize);
+        long indexEnd;
+
+        try
+        {
+            indexEnd = checked(indexStart + indexSize);
+        }
+        catch (OverflowException)
+        {
+            return CsoIndexReadResult.Fail(
+                "IndexTableTooLarge",
+                "CSO index table range overflows the supported stream address space.");
+        }
 
         if (stream.Length < indexEnd)
         {
@@ -99,6 +112,16 @@ public sealed class CsoIndexReader
         }
 
         return CsoIndexReadResult.Ok(entries);
+    }
+
+    private static long ResolveIndexStart(CsoHeader header)
+    {
+        if (header.Version == 1)
+        {
+            return CsoV1IndexStart;
+        }
+
+        return header.EffectiveHeaderSize;
     }
 
     private static int ReadExactlyOrLess(Stream stream, Span<byte> buffer)

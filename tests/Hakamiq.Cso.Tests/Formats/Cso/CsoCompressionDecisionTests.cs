@@ -22,21 +22,21 @@ public sealed class CsoCompressionDecisionTests
             IsStored: false,
             Method: CompressionMethod.RawDeflate,
             Level: 9,
-            Buffer: new byte[] { 1, 2, 3, 4 });
+            Buffer: [1, 2, 3, 4]);
 
-        CsoBestCandidateSelector selector = new();
-        SectorResult result = selector.Select(job, candidate);
+        byte[] expected = [1, 2, 3, 4];
+        SectorResult result = CsoBestCandidateSelector.Select(job, candidate);
 
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
         Assert.Equal(9, result.Level);
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, result.OutputSpan.ToArray());
+        Assert.Equal(expected, result.OutputSpan.ToArray());
     }
 
     [Fact]
     public void BestCandidateSelector_Select_WhenCompressedCandidateIsEqualSize_ReturnsStoredSector()
     {
-        byte[] source = new byte[] { 10, 20, 30, 40 };
+        byte[] source = [10, 20, 30, 40];
         SectorJob job = new(
             BlockIndex: 1,
             SourceOffset: 2048,
@@ -51,10 +51,9 @@ public sealed class CsoCompressionDecisionTests
             IsStored: false,
             Method: CompressionMethod.RawDeflate,
             Level: 9,
-            Buffer: new byte[] { 1, 2, 3, 4 });
+            Buffer: [1, 2, 3, 4]);
 
-        CsoBestCandidateSelector selector = new();
-        SectorResult result = selector.Select(job, candidate);
+        SectorResult result = CsoBestCandidateSelector.Select(job, candidate);
 
         Assert.True(result.IsStored);
         Assert.Equal(CompressionMethod.Store, result.Method);
@@ -65,7 +64,7 @@ public sealed class CsoCompressionDecisionTests
     [Fact]
     public void BestCandidateSelector_Select_WhenCompressedCandidateIsLarger_ReturnsStoredSector()
     {
-        byte[] source = new byte[] { 1, 2, 3 };
+        byte[] source = [1, 2, 3];
         SectorJob job = new(
             BlockIndex: 2,
             SourceOffset: 4096,
@@ -80,10 +79,9 @@ public sealed class CsoCompressionDecisionTests
             IsStored: false,
             Method: CompressionMethod.RawDeflate,
             Level: 9,
-            Buffer: new byte[] { 1, 2, 3, 4, 5 });
+            Buffer: [1, 2, 3, 4, 5]);
 
-        CsoBestCandidateSelector selector = new();
-        SectorResult result = selector.Select(job, candidate);
+        SectorResult result = CsoBestCandidateSelector.Select(job, candidate);
 
         Assert.True(result.IsStored);
         Assert.Equal(CompressionMethod.Store, result.Method);
@@ -121,7 +119,8 @@ public sealed class CsoCompressionDecisionTests
             Buffer: new byte[8]);
 
         CsoBestCandidateSelector selector = new();
-        SectorResult result = selector.Select(job, new[] { larger, smaller });
+        SectorResult[] candidates = [larger, smaller];
+        SectorResult result = selector.Select(job, candidates);
 
         Assert.False(result.IsStored);
         Assert.Equal(8, result.OutputLength);
@@ -153,7 +152,8 @@ public sealed class CsoCompressionDecisionTests
             decodeMilliseconds: 1);
 
         CsoBestCandidateSelector selector = new(CsoCompressionProfile.Fast);
-        SectorResult result = selector.Select(job, new[] { slowSmaller, fastLarger });
+        SectorResult[] candidates = [slowSmaller, fastLarger];
+        SectorResult result = selector.Select(job, candidates);
 
         Assert.Equal("fast-larger", result.EffectiveCodecName);
     }
@@ -183,7 +183,8 @@ public sealed class CsoCompressionDecisionTests
             decodeMilliseconds: 1);
 
         CsoBestCandidateSelector selector = new(CsoCompressionProfile.GameSafe);
-        SectorResult result = selector.Select(job, new[] { slowSmaller, fastLarger });
+        SectorResult[] candidates = [slowSmaller, fastLarger];
+        SectorResult result = selector.Select(job, candidates);
 
         Assert.Equal("slow-smaller", result.EffectiveCodecName);
     }
@@ -191,7 +192,7 @@ public sealed class CsoCompressionDecisionTests
     [Fact]
     public void CompressionWorker_Compress_WhenBlockIsSmallAndUnhelpful_StoresOriginalBytes()
     {
-        byte[] source = new byte[] { 1, 2, 3, 4 };
+        byte[] source = [1, 2, 3, 4];
         SectorJob job = new(
             BlockIndex: 0,
             SourceOffset: 0,
@@ -256,6 +257,27 @@ public sealed class CsoCompressionDecisionTests
 
 public sealed class CsoCompressionProfileWorkerTests
 {
+    private static readonly string[] FastProfileCodecNames =
+    [
+        "managed-deflate-fastest",
+        "native-libdeflate-1",
+        "native-libdeflate-6",
+    ];
+
+    private static readonly string[] SmallestProfileCodecNames =
+    [
+        "managed-deflate-fastest",
+        "managed-deflate-optimal",
+        "managed-deflate-smallest",
+        "native-zlib-default",
+        "native-zlib-filtered",
+        "native-zlib-huffman-only",
+        "native-zlib-rle",
+        "native-libdeflate-6",
+        "native-libdeflate-9",
+        "native-libdeflate-12",
+    ];
+
     [Fact]
     public void CompressionWorker_WithFastProfile_ReportsFastLogicalLevel()
     {
@@ -271,9 +293,7 @@ public sealed class CsoCompressionProfileWorkerTests
 
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
-        Assert.Contains(
-            result.EffectiveCodecName,
-            new[] { "managed-deflate-fastest", "native-libdeflate-1", "native-libdeflate-6" });
+        Assert.Contains(result.EffectiveCodecName, FastProfileCodecNames);
     }
 
     [Fact]
@@ -291,20 +311,6 @@ public sealed class CsoCompressionProfileWorkerTests
 
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
-        Assert.Contains(
-            result.EffectiveCodecName,
-            new[]
-            {
-                "managed-deflate-fastest",
-                "managed-deflate-optimal",
-                "managed-deflate-smallest",
-                "native-zlib-default",
-                "native-zlib-filtered",
-                "native-zlib-huffman-only",
-                "native-zlib-rle",
-                "native-libdeflate-6",
-                "native-libdeflate-9",
-                "native-libdeflate-12",
-            });
+        Assert.Contains(result.EffectiveCodecName, SmallestProfileCodecNames);
     }
 }

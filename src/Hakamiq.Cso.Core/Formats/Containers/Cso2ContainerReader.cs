@@ -3,17 +3,12 @@ using Hakamiq.Cso.Core.Formats.DiscImage;
 
 namespace Hakamiq.Cso.Core.Formats.Containers;
 
-public sealed class Cso2ContainerReader : CsoLikeContainerReader
+public sealed class Cso2ContainerReader(string inputPath) : CsoLikeContainerReader(
+    inputPath,
+    CsoConstants.MagicText,
+    static version => version == 2,
+    "CSO2")
 {
-    public Cso2ContainerReader(string inputPath)
-        : base(
-            inputPath,
-            CsoConstants.MagicText,
-            static version => version == 2,
-            "CSO2")
-    {
-    }
-
     public override DetectedDiscFormat Format => DetectedDiscFormat.Cso2;
 
     protected override int ReadPayload(
@@ -23,9 +18,6 @@ public sealed class Cso2ContainerReader : CsoLikeContainerReader
         int blockIndex,
         Span<byte> output)
     {
-        // CSO2 uses the high index bit as the codec selector: flagged blocks are LZ4.
-        // Do not apply CSO1's stored-block heuristic before reading the flag. LZ4 literal
-        // blocks may be physically larger than the decoded block and still be valid LZ4.
         if (current.HasFlag)
         {
             byte[] lz4Payload = ReadPayloadBytes(input, physicalSize, blockIndex, "CSO2");

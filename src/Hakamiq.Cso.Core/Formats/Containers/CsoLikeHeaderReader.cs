@@ -21,9 +21,9 @@ internal static class CsoLikeHeaderReader
                 $"{formatName} magic did not match the expected container signature.");
         }
 
-        uint headerSize = BinaryPrimitives.ReadUInt32LittleEndian(headerBytes.Slice(4, 4));
-        ulong uncompressedSize = BinaryPrimitives.ReadUInt64LittleEndian(headerBytes.Slice(8, 8));
-        uint blockSize = BinaryPrimitives.ReadUInt32LittleEndian(headerBytes.Slice(16, 4));
+        uint headerSize = BinaryPrimitives.ReadUInt32LittleEndian(headerBytes[4..8]);
+        ulong uncompressedSize = BinaryPrimitives.ReadUInt64LittleEndian(headerBytes[8..16]);
+        uint blockSize = BinaryPrimitives.ReadUInt32LittleEndian(headerBytes[16..20]);
         byte version = headerBytes[20];
         byte indexShift = headerBytes[21];
 
@@ -64,7 +64,10 @@ internal static class CsoLikeHeaderReader
                 $"{formatName} index table is too large.");
         }
 
-        long indexStart = header.EffectiveHeaderSize;
+        long indexStart = version == 2
+            ? checked((long)header.EffectiveHeaderSize)
+            : CsoConstants.MinimumHeaderSize;
+
         long indexEnd = checked(indexStart + header.IndexTableSizeBytes);
 
         if (input.Length < indexEnd)
@@ -85,6 +88,14 @@ internal static class CsoLikeHeaderReader
             ReadExactly(input, rawEntry);
             uint rawValue = BinaryPrimitives.ReadUInt32LittleEndian(rawEntry);
             entries[i] = CsoIndexEntry.FromRaw(i, rawValue, header.IndexShift);
+        }
+
+        if (version == 2 && entries[^1].HasFlag)
+        {
+            throw new BlockContainerReadException(
+                "CsoV2FinalSentinelHighBit",
+                $"{formatName} final sentinel index entry must not have the high-bit flag set.",
+                blockIndex: entries.Length - 1);
         }
 
         if (entries[0].Offset < (ulong)indexEnd)

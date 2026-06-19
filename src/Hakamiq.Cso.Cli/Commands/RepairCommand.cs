@@ -31,7 +31,7 @@ public static class RepairCommand
             return CliExitCodes.InvalidArguments;
         }
 
-        CsoRepairResult result = new CsoRepairer().Repair(
+        CsoRepairResult result = CsoRepairer.Repair(
             new CsoRepairOptions(
                 options.InputPath,
                 options.OutputPath,
@@ -112,7 +112,13 @@ public static class RepairCommand
             {
                 Console.WriteLine("Codec wins:");
 
-                foreach (KeyValuePair<string, int> item in result.CodecTrialSummary.SelectedCodecWins.OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase))
+                List<KeyValuePair<string, int>> selectedCodecWins =
+                    [.. result.CodecTrialSummary.SelectedCodecWins];
+
+                selectedCodecWins.Sort(static (left, right) =>
+                    StringComparer.OrdinalIgnoreCase.Compare(left.Key, right.Key));
+
+                foreach (KeyValuePair<string, int> item in selectedCodecWins)
                 {
                     Console.WriteLine($"  {item.Key}: {item.Value:N0}");
                 }
@@ -145,7 +151,6 @@ public static class RepairCommand
         bool force = false;
         bool json = false;
         bool padLastSector = false;
-        bool deepVerify = false;
         bool codecReport = false;
         int codecReportBlockLimit = 64;
         CsoCompressionProfile profile = CsoCompressionProfile.GameSafe;
@@ -201,7 +206,6 @@ public static class RepairCommand
             if (string.Equals(arg, "--deep-verify", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(arg, "--deep", StringComparison.OrdinalIgnoreCase))
             {
-                deepVerify = true;
                 continue;
             }
 
@@ -284,7 +288,7 @@ public static class RepairCommand
             json,
             profile,
             padLastSector,
-            DeepVerify: deepVerify || profile == CsoCompressionProfile.GameSafe,
+            DeepVerify: true,
             CodecReport: codecReport,
             CodecReportBlockLimit: codecReportBlockLimit);
 
@@ -293,7 +297,15 @@ public static class RepairCommand
 
     private static bool HasJsonFlag(string[] args)
     {
-        return args.Any(static arg => string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase));
+        for (int index = 0; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int ToExitCode(string? errorCode)
@@ -307,6 +319,8 @@ public static class RepairCommand
             "UnsupportedContainer" => CliExitCodes.UnsupportedCsoVersion,
             "DiskSpacePreflightFailed" => CliExitCodes.NotEnoughDiskSpace,
             "InvalidCodecReportBlockLimit" => CliExitCodes.InvalidArguments,
+            "UnsupportedRepairProfile" => CliExitCodes.InvalidArguments,
+            "DeepVerifyRequired" => CliExitCodes.InvalidArguments,
             _ => CliExitCodes.GeneralFailure,
         };
     }

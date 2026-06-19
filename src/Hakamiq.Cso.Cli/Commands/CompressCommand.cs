@@ -24,7 +24,20 @@ public static class CompressCommand
 
         using CancellationTokenSource cancellation = new();
 
-        ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+        Console.CancelKeyPress += OnCancelKeyPress;
+
+        try
+        {
+            return options.Measure
+                ? RunMeasure(options, cancellation.Token)
+                : RunCompress(options, cancellation.Token);
+        }
+        finally
+        {
+            Console.CancelKeyPress -= OnCancelKeyPress;
+        }
+
+        void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs)
         {
             eventArgs.Cancel = true;
 
@@ -38,19 +51,6 @@ public static class CompressCommand
                     Console.Error.WriteLine("Cancellation requested. Cleaning up...");
                 }
             }
-        };
-
-        Console.CancelKeyPress += cancelHandler;
-
-        try
-        {
-            return options.Measure
-                ? RunMeasure(options, cancellation.Token)
-                : RunCompress(options, cancellation.Token);
-        }
-        finally
-        {
-            Console.CancelKeyPress -= cancelHandler;
         }
     }
 
@@ -75,12 +75,12 @@ public static class CompressCommand
         CsoMeasureEstimator estimator = new();
         CsoMeasureResult result = estimator.Measure(
             new CsoMeasureOptions(
-                options.InputPath,
-                options.BlockSize,
-                cancellationToken,
-                progress,
-                options.Profile,
-                options.UseZopfli));
+                InputPath: options.InputPath,
+                BlockSize: options.BlockSize,
+                Progress: progress,
+                Profile: options.Profile,
+                UseZopfli: options.UseZopfli,
+                CancellationToken: cancellationToken));
 
         progress?.FinishLine();
 
@@ -94,6 +94,7 @@ public static class CompressCommand
                 options.WorkerCount,
                 options.UseZopfli,
                 deepVerify: false,
+                codecReport: options.CodecReport,
                 codecReportBlockLimit: options.CodecReportBlockLimit));
 
             return result.Success
@@ -166,14 +167,14 @@ public static class CompressCommand
                 outputPath,
                 options.Force && !autoOutput,
                 options.BlockSize,
-                cancellationToken,
-                progress,
-                options.Profile,
-                options.WorkerCount,
-                options.UseZopfli,
-                options.DeepVerify,
-                options.CodecReport,
-                options.CodecReportBlockLimit));
+                Progress: progress,
+                Profile: options.Profile,
+                WorkerCount: options.WorkerCount,
+                UseZopfli: options.UseZopfli,
+                DeepVerifyOutput: options.DeepVerify,
+                CollectCodecReport: options.CodecReport,
+                CodecReportBlockLimit: options.CodecReportBlockLimit,
+                CancellationToken: cancellationToken));
 
         progress?.FinishLine();
 
@@ -550,10 +551,10 @@ public static class CompressCommand
             "OutputAlreadyExists" => CliExitCodes.OutputAlreadyExists,
             "NotEnoughDiskSpace" => CliExitCodes.NotEnoughDiskSpace,
             "OperationCanceled" => CliExitCodes.OperationCanceled,
-            "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" or "InvalidInputSize" => CliExitCodes.CannotWriteOutput,
+            "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "CompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InputAccessDenied" or "MeasureIoFailed" => CliExitCodes.CannotWriteOutput,
-            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" or "InvalidCodecReportBlockLimit" => CliExitCodes.InvalidCsoHeader,
+            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" or "InvalidCodecReportBlockLimit" or "InvalidInputSize" => CliExitCodes.InvalidCsoHeader,
             _ => CliExitCodes.CompressionFailed
         };
     }
@@ -572,7 +573,15 @@ public static class CompressCommand
 
     private static bool HasJsonFlag(string[] args)
     {
-        return args.Any(static arg => string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase));
+        for (int index = 0; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void PrintProfileSummary(CsoCompressionProfileSettings profileSettings)
@@ -613,7 +622,11 @@ public static class CompressCommand
     {
         Console.WriteLine("Codec wins:");
 
-        foreach (KeyValuePair<string, int> item in codecWins.OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase))
+        List<KeyValuePair<string, int>> orderedCodecWins = [.. codecWins];
+        orderedCodecWins.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Key, right.Key));
+
+        foreach (KeyValuePair<string, int> item in orderedCodecWins)
         {
             Console.WriteLine($"  {item.Key}: {item.Value:N0}");
         }

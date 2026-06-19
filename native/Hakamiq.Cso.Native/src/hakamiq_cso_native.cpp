@@ -137,7 +137,7 @@ extern "C"
 
         version->abi_version = 2;
         version->major = 0;
-        version->minor = 5;
+        version->minor = 6;
         version->patch = 0;
 
         return HAKAMIQ_CSO_NATIVE_OK;

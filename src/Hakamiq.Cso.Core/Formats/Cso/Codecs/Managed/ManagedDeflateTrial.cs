@@ -49,6 +49,27 @@ public sealed class ManagedDeflateTrial : ICsoCodecTrial
             }
 
             byte[] output = compressed.ToArray();
+
+            if (output.Length == 0)
+            {
+                result = CsoCodecTrialResult.Fail(
+                    Kind,
+                    Name,
+                    "ManagedDeflateFailed",
+                    "Managed deflate produced an empty output block.");
+                return false;
+            }
+
+            if (!RawDeflateVerifier.RoundtripEquals(output, input, input.Length))
+            {
+                result = CsoCodecTrialResult.Fail(
+                    Kind,
+                    Name,
+                    "ManagedDeflateRoundtripFailed",
+                    "Managed deflate failed roundtrip validation.");
+                return false;
+            }
+
             result = new CsoCodecTrialResult(Kind, Name, output, output.Length, Success: true);
             return true;
         }

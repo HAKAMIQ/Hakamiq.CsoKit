@@ -4,12 +4,12 @@ using Hakamiq.Cso.Core.Formats.Cso;
 
 namespace Hakamiq.Cso.Core.Formats.DiscImage;
 
-public sealed class FormatDetector
+public static class FormatDetector
 {
     public const int ProbeBytes = 64 * 1024;
     private const int Iso9660PrimaryVolumeDescriptorOffset = 16 * 2048;
 
-    public FormatDetectionResult Detect(string inputPath)
+    public static FormatDetectionResult Detect(string inputPath)
     {
         if (string.IsNullOrWhiteSpace(inputPath))
         {
@@ -43,7 +43,7 @@ public sealed class FormatDetector
         }
     }
 
-    public FormatDetectionResult Detect(Stream input)
+    public static FormatDetectionResult Detect(Stream input)
     {
         ArgumentNullException.ThrowIfNull(input);
 
@@ -53,7 +53,7 @@ public sealed class FormatDetector
         }
 
         byte[] probe = new byte[ProbeBytes];
-        int read = input.Read(probe);
+        int read = CsoBlockReader.ReadExactlyOrLess(input, probe);
         ReadOnlySpan<byte> data = probe.AsSpan(0, read);
         List<string> warnings = [];
 
@@ -99,7 +99,7 @@ public sealed class FormatDetector
                 : checked((long)((uncompressedSize + blockSize - 1) / blockSize));
 
             return new FormatDetectionResult(
-                Success: true,
+                true,
                 format,
                 "CISO",
                 headerSize,
@@ -126,7 +126,7 @@ public sealed class FormatDetector
                     : checked((long)((uncompressedSize + blockSize - 1) / blockSize));
 
                 return new FormatDetectionResult(
-                    Success: true,
+                    true,
                     DetectedDiscFormat.Zso,
                     "ZISO",
                     headerSize,
@@ -138,14 +138,14 @@ public sealed class FormatDetector
             }
 
             return new FormatDetectionResult(
-                Success: true,
+                true,
                 DetectedDiscFormat.Zso,
                 "ZISO",
-                HeaderSize: null,
-                UncompressedSize: null,
-                BlockSize: null,
-                IndexShift: null,
-                SectorCount: null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 warnings);
         }
 
@@ -160,54 +160,54 @@ public sealed class FormatDetector
                 long sectorCount = checked((uncompressedSize + 8191L) / 8192L);
 
                 return new FormatDetectionResult(
-                    Success: true,
+                    true,
                     DetectedDiscFormat.Dax,
                     "DAX",
-                    HeaderSize: 32,
-                    UncompressedSize: uncompressedSize,
-                    BlockSize: 8192,
-                    IndexShift: null,
+                    32,
+                    uncompressedSize,
+                    8192,
+                    null,
                     sectorCount,
                     warnings);
             }
 
             return new FormatDetectionResult(
-                Success: true,
+                true,
                 DetectedDiscFormat.Dax,
                 "DAX",
-                HeaderSize: null,
-                UncompressedSize: null,
-                BlockSize: null,
-                IndexShift: null,
-                SectorCount: null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 warnings);
         }
 
         if (LooksLikeIso9660(data))
         {
             return new FormatDetectionResult(
-                Success: true,
+                true,
                 DetectedDiscFormat.RawIso,
                 "ISO9660",
-                HeaderSize: null,
-                UncompressedSize: null,
-                BlockSize: 2048,
-                IndexShift: null,
-                SectorCount: input.CanSeek ? checked((input.Length + 2047) / 2048) : null,
+                null,
+                null,
+                2048,
+                null,
+                input.CanSeek ? checked((input.Length + 2047) / 2048) : null,
                 warnings);
         }
 
         warnings.Add("Unknown format. No CSO/ZSO/DAX magic or ISO9660 primary volume descriptor was found in the first 64KB.");
 
         return new FormatDetectionResult(
-            Success: true,
+            true,
             DetectedDiscFormat.Unknown,
             magic,
-            HeaderSize: null,
-            UncompressedSize: null,
-            BlockSize: null,
-            IndexShift: null,
-            SectorCount: null,
+            null,
+            null,
+            null,
+            null,
+            null,
             warnings);
     }
 

@@ -3,17 +3,12 @@ using Hakamiq.Cso.Core.Formats.DiscImage;
 
 namespace Hakamiq.Cso.Core.Formats.Containers;
 
-public sealed class Cso1ContainerReader : CsoLikeContainerReader
+public sealed class Cso1ContainerReader(string inputPath) : CsoLikeContainerReader(
+    inputPath,
+    CsoConstants.MagicText,
+    static version => version is 0 or 1,
+    "CSO1")
 {
-    public Cso1ContainerReader(string inputPath)
-        : base(
-            inputPath,
-            CsoConstants.MagicText,
-            static version => version is 0 or 1,
-            "CSO1")
-    {
-    }
-
     public override DetectedDiscFormat Format => DetectedDiscFormat.Cso1;
 
     protected override int ReadPayload(

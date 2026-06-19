@@ -7,9 +7,7 @@ public sealed class CsoDecompressorTests
     [Fact]
     public void Decompress_WithValidRawDeflateCsoV1_WritesExpectedIsoBytes()
     {
-        byte[] original = Enumerable.Range(0, 8192 + 123)
-            .Select(index => (byte)(index % 4))
-            .ToArray();
+        byte[] original = CreateModuloBytes(8192 + 123, 4);
 
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(original);
         string outputPath = CreateTempIsoPath();
@@ -34,9 +32,7 @@ public sealed class CsoDecompressorTests
     [Fact]
     public void Decompress_WithLegacyVersionZeroCsoV1_WritesExpectedIsoBytes()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 2))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096, 2);
 
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(original, version: 0);
         string outputPath = CreateTempIsoPath();
@@ -60,13 +56,11 @@ public sealed class CsoDecompressorTests
     [Fact]
     public void Decompress_WithUncompressedHighBitBlocks_WritesExpectedIsoBytes()
     {
-        byte[] original = Enumerable.Range(0, 5000)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
+        byte[] original = CreateModuloBytes(5000, 251);
 
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(
             original,
-            storeBlockUncompressed: _ => true);
+            storeBlockUncompressed: static _ => true);
 
         string outputPath = CreateTempIsoPath();
 
@@ -89,9 +83,7 @@ public sealed class CsoDecompressorTests
     [Fact]
     public void Decompress_WithForceOverwrite_ReplacesExistingOutput()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 7))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096, 7);
 
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(original);
         string outputPath = CreateTempIsoPath();
@@ -116,9 +108,7 @@ public sealed class CsoDecompressorTests
     [Fact]
     public void Decompress_WhenSiblingTmpFileExists_DoesNotDeleteIt()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 3))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096, 3);
 
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(original);
         string outputPath = CreateTempIsoPath();
@@ -145,13 +135,10 @@ public sealed class CsoDecompressorTests
         }
     }
 
-
     [Fact]
     public void Decompress_WithMissingOutputDirectory_DoesNotCreateDirectory()
     {
-        byte[] original = Enumerable.Range(0, 4096)
-            .Select(index => (byte)(index % 5))
-            .ToArray();
+        byte[] original = CreateModuloBytes(4096, 5);
 
         string csoPath = CsoTestFileFactory.CreateTempCsoV1(original);
         string outputDirectory = Path.Combine(Path.GetTempPath(), $"HakamiqCsoKit_Missing_{Guid.NewGuid():N}");
@@ -176,6 +163,18 @@ public sealed class CsoDecompressorTests
                 Directory.Delete(outputDirectory, recursive: true);
             }
         }
+    }
+
+    private static byte[] CreateModuloBytes(int length, int modulo)
+    {
+        byte[] bytes = new byte[length];
+
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            bytes[index] = (byte)(index % modulo);
+        }
+
+        return bytes;
     }
 
     private static string CreateTempIsoPath()
