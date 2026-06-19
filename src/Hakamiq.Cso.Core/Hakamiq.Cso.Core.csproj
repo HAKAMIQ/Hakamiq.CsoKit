@@ -8,9 +8,9 @@
     <AssemblyName>Hakamiq.Cso.Core</AssemblyName>
     <RootNamespace>Hakamiq.Cso.Core</RootNamespace>
 
-    <Version>0.5.0</Version>
-    <PackageVersion>0.5.0</PackageVersion>
-    <InformationalVersion>0.5.0</InformationalVersion>
+    <Version>0.6.0</Version>
+    <PackageVersion>0.6.0</PackageVersion>
+    <InformationalVersion>0.6.0</InformationalVersion>
     <Authors>HAKAMIQ</Authors>
     <Company>HAKAMIQ</Company>
     <Product>Hakamiq CsoKit</Product>

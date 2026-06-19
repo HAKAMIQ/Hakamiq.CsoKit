@@ -1,14 +1,24 @@
-﻿namespace Hakamiq.Cso.Core.Formats.Cso;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed class CsoOutputPathPolicy
 {
     private const string ConvertedSuffix = " - Hakamiq Converted";
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Keep the instance API stable for existing CLI callers.")]
     public string CreateCompressionOutputPath(string inputPath)
     {
         return CreateSiblingOutputPath(inputPath, ".cso");
     }
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Keep the instance API stable for existing CLI callers.")]
     public string CreateDecompressionOutputPath(string inputPath)
     {
         return CreateSiblingOutputPath(inputPath, ".iso");

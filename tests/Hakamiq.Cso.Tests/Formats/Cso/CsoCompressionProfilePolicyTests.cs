@@ -5,9 +5,11 @@ namespace Hakamiq.Cso.Tests.Formats.Cso;
 public sealed class CsoCompressionProfilePolicyTests
 {
     [Theory]
+    [InlineData("game-safe", CsoCompressionProfile.GameSafe)]
     [InlineData("compat", CsoCompressionProfile.Compat)]
     [InlineData("FAST", CsoCompressionProfile.Fast)]
     [InlineData("smallest", CsoCompressionProfile.Smallest)]
+    [InlineData("archive-smallest", CsoCompressionProfile.ArchiveSmallest)]
     public void TryParse_WithSupportedProfile_ReturnsProfile(
         string value,
         CsoCompressionProfile expected)
@@ -40,6 +42,16 @@ public sealed class CsoCompressionProfilePolicyTests
     }
 
     [Fact]
+    public void Create_WithGameSafeProfile_UsesDefaultSafeSettings()
+    {
+        CsoCompressionProfileSettings settings = CsoCompressionProfilePolicy.Create(CsoCompressionProfile.GameSafe);
+
+        Assert.Equal("game-safe", settings.CliName);
+        Assert.False(settings.IsFast);
+        Assert.Equal(9, settings.Level);
+    }
+
+    [Fact]
     public void Create_WithSmallestProfile_UsesDefaultSafeSettings()
     {
         CsoCompressionProfileSettings settings = CsoCompressionProfilePolicy.Create(CsoCompressionProfile.Smallest);
@@ -62,13 +74,15 @@ public sealed class CsoCompressionProfilePolicyTests
     [Fact]
     public void SupportedNamesText_ListsPublicProfilesForHelpAndErrors()
     {
-        Assert.Equal("compat|fast|smallest", CsoCompressionProfilePolicy.SupportedNamesText);
+        Assert.Equal("game-safe|compat|fast|smallest|archive-smallest", CsoCompressionProfilePolicy.SupportedNamesText);
     }
 
     [Theory]
+    [InlineData(CsoCompressionProfile.GameSafe, "game-safe")]
     [InlineData(CsoCompressionProfile.Compat, "compat")]
     [InlineData(CsoCompressionProfile.Fast, "fast")]
     [InlineData(CsoCompressionProfile.Smallest, "smallest")]
+    [InlineData(CsoCompressionProfile.ArchiveSmallest, "archive-smallest")]
     public void GetCliName_WithSupportedProfile_ReturnsPublicName(
         CsoCompressionProfile profile,
         string expectedName)

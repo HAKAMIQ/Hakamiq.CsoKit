@@ -4,30 +4,56 @@ namespace Hakamiq.Cso.Tests.Native;
 
 public sealed class NativeCsoRuntimeTests
 {
-    [Theory]
-    [InlineData("1")]
-    [InlineData("true")]
-    [InlineData("TRUE")]
-    [InlineData("yes")]
-    [InlineData("YES")]
-    public void GetInfo_WhenNativeDisabledByEnvironment_ReturnsManagedFallback(string value)
+    [Fact]
+    public void NativeZlibRawDeflate_RoundtripsEachStrategy()
     {
-        string? previous = Environment.GetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable);
-
-        try
+        NativeCsoCapabilities capabilities = NativeCsoRuntime.GetCapabilities();
+        if (!capabilities.HasZlib)
         {
-            Environment.SetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable, value);
-
-            NativeCsoRuntimeInfo info = NativeCsoRuntime.GetInfo();
-
-            Assert.False(info.IsAvailable);
-            Assert.Equal("managed", info.BackendName);
-            Assert.Null(info.NativeVersion);
-            Assert.Contains(NativeCsoRuntime.DisableNativeEnvironmentVariable, info.FailureReason);
+            return;
         }
-        finally
+
+        byte[] original = CreateSampleBlock();
+
+        NativeCsoRawCodec[] codecs =
+        [
+            NativeCsoRawCodec.ZlibDefault,
+            NativeCsoRawCodec.ZlibFiltered,
+            NativeCsoRawCodec.ZlibHuffmanOnly,
+            NativeCsoRawCodec.ZlibRle,
+        ];
+
+        foreach (NativeCsoRawCodec codec in codecs)
         {
-            Environment.SetEnvironmentVariable(NativeCsoRuntime.DisableNativeEnvironmentVariable, previous);
+            Assert.True(NativeCsoRuntime.TryDeflateRaw(codec, level: 9, strategy: 0, original, out byte[] compressed));
+            Assert.True(NativeCsoRuntime.TryInflateRaw(compressed, original.Length, out byte[] restored));
+            Assert.Equal(original, restored);
         }
+    }
+
+    [Fact]
+    public void NativeLibDeflateRawDeflate_RoundtripsRequestedLevels()
+    {
+        NativeCsoCapabilities capabilities = NativeCsoRuntime.GetCapabilities();
+        if (!capabilities.HasLibDeflate)
+        {
+            return;
+        }
+
+        byte[] original = CreateSampleBlock();
+
+        int[] levels = [1, 6, 9, 12];
+
+        foreach (int level in levels)
+        {
+            Assert.True(NativeCsoRuntime.TryDeflateRaw(NativeCsoRawCodec.LibDeflate, level, strategy: 0, original, out byte[] compressed));
+            Assert.True(NativeCsoRuntime.TryInflateRaw(compressed, original.Length, out byte[] restored));
+            Assert.Equal(original, restored);
+        }
+    }
+
+    private static byte[] CreateSampleBlock()
+    {
+        return new byte[4096];
     }
 }

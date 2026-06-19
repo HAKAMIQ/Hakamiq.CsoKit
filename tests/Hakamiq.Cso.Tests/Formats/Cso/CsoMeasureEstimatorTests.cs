@@ -7,9 +7,7 @@ public sealed class CsoMeasureEstimatorTests
     [Fact]
     public void Measure_WithValidIso_ReturnsEstimateWithoutCreatingOutputFile()
     {
-        byte[] original = Enumerable.Range(0, 8192 + 123)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
+        byte[] original = CreateModuloBytes(8192 + 123, 251);
 
         string isoPath = CreateTempPath(".iso");
         string csoPath = CreateTempPath(".cso");
@@ -37,9 +35,7 @@ public sealed class CsoMeasureEstimatorTests
     [Fact]
     public void Measure_WithValidIso_MatchesCurrentCompressorOutputSizeAndBlockDecisions()
     {
-        byte[] original = Enumerable.Range(0, 16384 + 333)
-            .Select(index => (byte)(index % 17))
-            .ToArray();
+        byte[] original = CreateModuloBytes(16384 + 333, 17);
 
         string isoPath = CreateTempPath(".iso");
         string csoPath = CreateTempPath(".cso");
@@ -90,7 +86,7 @@ public sealed class CsoMeasureEstimatorTests
 
         try
         {
-            File.WriteAllBytes(isoPath, Array.Empty<byte>());
+            File.WriteAllBytes(isoPath, []);
 
             CsoMeasureEstimator estimator = new();
             CsoMeasureResult result = estimator.Measure(new CsoMeasureOptions(isoPath));
@@ -102,6 +98,18 @@ public sealed class CsoMeasureEstimatorTests
         {
             File.Delete(isoPath);
         }
+    }
+
+    private static byte[] CreateModuloBytes(int length, int modulo)
+    {
+        byte[] bytes = new byte[length];
+
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            bytes[index] = (byte)(index % modulo);
+        }
+
+        return bytes;
     }
 
     private static string CreateTempPath(string extension)

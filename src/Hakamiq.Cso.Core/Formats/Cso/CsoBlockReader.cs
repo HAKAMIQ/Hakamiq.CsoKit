@@ -6,20 +6,14 @@ public static class CsoBlockReader
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        int totalRead = 0;
-
-        while (totalRead < buffer.Length)
+        if (buffer.IsEmpty)
         {
-            int read = stream.Read(buffer[totalRead..]);
-
-            if (read == 0)
-            {
-                break;
-            }
-
-            totalRead += read;
+            return 0;
         }
 
-        return totalRead;
+        return stream.ReadAtLeast(
+            buffer,
+            buffer.Length,
+            throwOnEndOfStream: false);
     }
 }

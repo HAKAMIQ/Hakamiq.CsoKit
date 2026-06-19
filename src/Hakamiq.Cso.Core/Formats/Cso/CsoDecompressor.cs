@@ -1,4 +1,4 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
@@ -44,8 +44,15 @@ public sealed class CsoDecompressor
 
             if (!verification.Success || verification.Header is null || verification.Entries.Count == 0)
             {
-                string message = verification.Issues.FirstOrDefault()?.Message ?? "CSO verification failed.";
-                string code = verification.Issues.FirstOrDefault()?.Code ?? "VerificationFailed";
+                string message = "CSO verification failed.";
+                string code = "VerificationFailed";
+
+                if (verification.Issues.Count > 0)
+                {
+                    message = verification.Issues[0].Message;
+                    code = verification.Issues[0].Code;
+                }
+
                 return CsoDecompressResult.Fail(code, message);
             }
 

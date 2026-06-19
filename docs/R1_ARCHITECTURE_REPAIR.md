@@ -1,12 +1,12 @@
 # R1 Architecture Repair: Native Backend Policy
 
-> Historical note: this document records the R1 decision before the threaded/Zopfli compression phase. Current builds include a bounded threaded compression pipeline and an explicit optional native Zopfli candidate path.
+> Historical note: this document records the R1 decision before the threaded/native codec phase. Current builds include a bounded threaded compression pipeline, native zlib/libdeflate raw-Deflate candidates, and an explicit optional native Zopfli candidate path.
 
 R1 resolves the native-backend work as an architecture boundary, not a compression-speed feature.
 
 ## Decision
 
-The 0.5.0 production compression path remains the managed CSO compressor. The native DLL is release-gated only for runtime availability, ABI compatibility, `native-info`, and fallback behavior.
+The production compression path remains the managed CSO compressor unless native candidates are available and selected safely. The native DLL is release-gated only for runtime availability, ABI compatibility, `native-info`, and fallback behavior.
 
 ## Rationale
 

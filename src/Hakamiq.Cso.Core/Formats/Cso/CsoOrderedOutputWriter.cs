@@ -6,7 +6,19 @@ public sealed class CsoOrderedOutputWriter
 
     public CsoOrderedOutputWriter(Stream output)
     {
-        this.output = output ?? throw new ArgumentNullException(nameof(output));
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (!output.CanWrite)
+        {
+            throw new ArgumentException("CSO output stream must be writable.", nameof(output));
+        }
+
+        if (!output.CanSeek)
+        {
+            throw new ArgumentException("CSO output stream must be seekable.", nameof(output));
+        }
+
+        this.output = output;
     }
 
     public ulong Position => checked((ulong)output.Position);
@@ -18,13 +30,16 @@ public sealed class CsoOrderedOutputWriter
             throw new InvalidDataException("CSO index table is too large.");
         }
 
-        output.SetLength(checked((long)dataStart));
-        output.Position = checked((long)dataStart);
+        long dataStartPosition = checked((long)dataStart);
+
+        output.SetLength(dataStartPosition);
+        output.Position = dataStartPosition;
     }
 
     public void Write(SectorResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
+
         output.Write(result.OutputSpan);
     }
 }

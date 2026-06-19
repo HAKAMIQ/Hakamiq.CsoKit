@@ -8,6 +8,20 @@ public static class NativeCsoRuntime
 
     private const string LibraryName = "Hakamiq.Cso.Native";
     private const int NativeStatusOk = 0;
+    private const int NativeStatusCodecUnavailable = 4;
+
+    static NativeCsoRuntime()
+    {
+        try
+        {
+            NativeLibrary.SetDllImportResolver(
+                typeof(NativeCsoRuntime).Assembly,
+                ResolveNativeLibrary);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
 
     public static NativeCsoRuntimeInfo GetInfo()
     {
@@ -19,6 +33,7 @@ public static class NativeCsoRuntime
         try
         {
             int probe = NativeMethods.hakamiq_cso_native_probe();
+
             if (probe != NativeStatusOk)
             {
                 return CreateManagedFallback($"Native probe failed with status {probe}.");
@@ -49,6 +64,10 @@ public static class NativeCsoRuntime
             return CreateManagedFallback(ex.Message);
         }
         catch (BadImageFormatException ex)
+        {
+            return CreateManagedFallback(ex.Message);
+        }
+        catch (InvalidOperationException ex)
         {
             return CreateManagedFallback(ex.Message);
         }
@@ -96,6 +115,11 @@ public static class NativeCsoRuntime
 
             int compressedLength = checked((int)rawOutputSize);
 
+            if (compressedLength <= 0)
+            {
+                return false;
+            }
+
             if (compressedLength != outputBuffer.Length)
             {
                 Array.Resize(ref outputBuffer, compressedLength);
@@ -116,11 +140,196 @@ public static class NativeCsoRuntime
         {
             return false;
         }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public static bool TryDeflateRaw(
+        NativeCsoRawCodec codec,
+        int level,
+        int strategy,
+        ReadOnlySpan<byte> input,
+        out byte[] compressed)
+    {
+        compressed = [];
+
+        if (input.IsEmpty || IsDisabledByEnvironment())
+        {
+            return false;
+        }
+
+        byte[] inputBuffer = input.ToArray();
+        byte[] outputBuffer = new byte[inputBuffer.Length];
+
+        try
+        {
+            int result = NativeMethods.hakamiq_cso_native_deflate_raw(
+                (int)codec,
+                level,
+                strategy,
+                inputBuffer,
+                new UIntPtr((uint)inputBuffer.Length),
+                outputBuffer,
+                new UIntPtr((uint)outputBuffer.Length),
+                out UIntPtr outputSize);
+
+            if (result != NativeStatusOk)
+            {
+                return false;
+            }
+
+            ulong rawOutputSize = outputSize.ToUInt64();
+
+            if (rawOutputSize > (ulong)outputBuffer.Length)
+            {
+                return false;
+            }
+
+            int compressedLength = checked((int)rawOutputSize);
+
+            if (compressedLength <= 0)
+            {
+                return false;
+            }
+
+            if (compressedLength != outputBuffer.Length)
+            {
+                Array.Resize(ref outputBuffer, compressedLength);
+            }
+
+            compressed = outputBuffer;
+            return true;
+        }
+        catch (DllNotFoundException)
+        {
+            return false;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return false;
+        }
+        catch (BadImageFormatException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public static bool TryInflateRaw(
+        ReadOnlySpan<byte> compressed,
+        int expectedBytes,
+        out byte[] restored)
+    {
+        restored = [];
+
+        if (compressed.IsEmpty ||
+            expectedBytes <= 0 ||
+            IsDisabledByEnvironment())
+        {
+            return false;
+        }
+
+        byte[] inputBuffer = compressed.ToArray();
+        byte[] outputBuffer = new byte[expectedBytes];
+
+        try
+        {
+            int result = NativeMethods.hakamiq_cso_native_inflate_raw(
+                inputBuffer,
+                new UIntPtr((uint)inputBuffer.Length),
+                outputBuffer,
+                new UIntPtr((uint)outputBuffer.Length),
+                out UIntPtr outputSize);
+
+            if (result == NativeStatusCodecUnavailable)
+            {
+                return false;
+            }
+
+            if (result != NativeStatusOk)
+            {
+                return false;
+            }
+
+            ulong rawOutputSize = outputSize.ToUInt64();
+
+            if (rawOutputSize != (ulong)expectedBytes)
+            {
+                return false;
+            }
+
+            restored = outputBuffer;
+            return true;
+        }
+        catch (DllNotFoundException)
+        {
+            return false;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return false;
+        }
+        catch (BadImageFormatException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public static NativeCsoCapabilities GetCapabilities()
+    {
+        if (IsDisabledByEnvironment())
+        {
+            return NativeCsoCapabilities.ManagedFallback;
+        }
+
+        try
+        {
+            HakamiqCsoNativeCapabilities capabilities = default;
+            int result = NativeMethods.hakamiq_cso_native_get_capabilities(ref capabilities);
+
+            if (result != NativeStatusOk)
+            {
+                return NativeCsoCapabilities.ManagedFallback;
+            }
+
+            return new NativeCsoCapabilities(
+                capabilities.AbiVersion,
+                capabilities.HasZlib != 0,
+                capabilities.HasLibDeflate != 0,
+                capabilities.HasZopfli != 0,
+                capabilities.HasSevenZipDeflate != 0,
+                capabilities.HasLz4 != 0);
+        }
+        catch (DllNotFoundException)
+        {
+            return NativeCsoCapabilities.ManagedFallback;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return NativeCsoCapabilities.ManagedFallback;
+        }
+        catch (BadImageFormatException)
+        {
+            return NativeCsoCapabilities.ManagedFallback;
+        }
+        catch (InvalidOperationException)
+        {
+            return NativeCsoCapabilities.ManagedFallback;
+        }
     }
 
     public static bool IsDisabledByEnvironment()
     {
-        string? value = Environment.GetEnvironmentVariable(DisableNativeEnvironmentVariable);
+        string? value = Environment.GetEnvironmentVariable(DisableNativeEnvironmentVariable)?.Trim();
 
         return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
@@ -145,6 +354,91 @@ public static class NativeCsoRuntime
         public uint Patch;
     }
 
+    private static IntPtr ResolveNativeLibrary(
+        string libraryName,
+        System.Reflection.Assembly _,
+        DllImportSearchPath? __)
+    {
+        if (!string.Equals(libraryName, LibraryName, StringComparison.Ordinal))
+        {
+            return IntPtr.Zero;
+        }
+
+        foreach (string candidate in EnumerateNativeLibraryCandidates())
+        {
+            if (NativeLibrary.TryLoad(candidate, out IntPtr handle))
+            {
+                return handle;
+            }
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private static IEnumerable<string> EnumerateNativeLibraryCandidates()
+    {
+        string fileName = OperatingSystem.IsWindows()
+            ? $"{LibraryName}.dll"
+            : OperatingSystem.IsMacOS()
+                ? $"lib{LibraryName}.dylib"
+                : $"lib{LibraryName}.so";
+
+        HashSet<string> visitedRoots = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string root in EnumerateAncestorDirectories(AppContext.BaseDirectory))
+        {
+            if (visitedRoots.Add(root))
+            {
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Release", fileName);
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Debug", fileName);
+            }
+        }
+
+        foreach (string root in EnumerateAncestorDirectories(Environment.CurrentDirectory))
+        {
+            if (visitedRoots.Add(root))
+            {
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Release", fileName);
+                yield return Path.Combine(root, "artifacts", "native-build", "win-x64", "Debug", fileName);
+            }
+        }
+
+        yield return Path.Combine(AppContext.BaseDirectory, fileName);
+        yield return Path.Combine(Environment.CurrentDirectory, fileName);
+    }
+
+    private static IEnumerable<string> EnumerateAncestorDirectories(string start)
+    {
+        DirectoryInfo? current;
+
+        try
+        {
+            current = new DirectoryInfo(Path.GetFullPath(start));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            yield break;
+        }
+
+        while (current is not null)
+        {
+            yield return current.FullName;
+            current = current.Parent;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HakamiqCsoNativeCapabilities
+    {
+        public uint AbiVersion;
+        public uint HasZlib;
+        public uint HasLibDeflate;
+        public uint HasZopfli;
+        public uint HasSevenZipDeflate;
+        public uint HasLz4;
+    }
+
+#pragma warning disable SYSLIB1054
     private static class NativeMethods
     {
         [DllImport(LibraryName, ExactSpelling = true)]
@@ -155,6 +449,29 @@ public static class NativeCsoRuntime
             ref HakamiqCsoNativeVersion version);
 
         [DllImport(LibraryName, ExactSpelling = true)]
+        internal static extern int hakamiq_cso_native_get_capabilities(
+            ref HakamiqCsoNativeCapabilities capabilities);
+
+        [DllImport(LibraryName, ExactSpelling = true)]
+        internal static extern int hakamiq_cso_native_deflate_raw(
+            int codec,
+            int level,
+            int strategy,
+            byte[] input,
+            UIntPtr inputSize,
+            byte[] output,
+            UIntPtr outputCapacity,
+            out UIntPtr outputSize);
+
+        [DllImport(LibraryName, ExactSpelling = true)]
+        internal static extern int hakamiq_cso_native_inflate_raw(
+            byte[] input,
+            UIntPtr inputSize,
+            byte[] output,
+            UIntPtr outputCapacity,
+            out UIntPtr outputSize);
+
+        [DllImport(LibraryName, ExactSpelling = true)]
         internal static extern int hakamiq_cso_native_deflate_zopfli(
             byte[] input,
             UIntPtr inputSize,
@@ -163,4 +480,5 @@ public static class NativeCsoRuntime
             UIntPtr outputCapacity,
             out UIntPtr outputSize);
     }
+#pragma warning restore SYSLIB1054
 }

@@ -1,3 +1,5 @@
+using Hakamiq.Cso.Core.Compression.Trials;
+
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed record CsoCompressResult(
@@ -7,13 +9,24 @@ public sealed record CsoCompressResult(
     ulong BytesRead,
     ulong BytesWritten,
     int CompressedBlocks,
-    int StoredBlocks)
+    int StoredBlocks,
+    IReadOnlyDictionary<string, int>? CodecWins = null,
+    CodecTrialSummary? CodecTrialSummary = null,
+    int ZeroBlocks = 0)
 {
+    public IReadOnlyDictionary<string, int> EffectiveCodecWins => CodecWins ?? EmptyCodecWins;
+
+    private static readonly IReadOnlyDictionary<string, int> EmptyCodecWins =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
     public static CsoCompressResult Ok(
         ulong bytesRead,
         ulong bytesWritten,
         int compressedBlocks,
-        int storedBlocks)
+        int storedBlocks,
+        IReadOnlyDictionary<string, int>? codecWins = null,
+        CodecTrialSummary? codecTrialSummary = null,
+        int zeroBlocks = 0)
     {
         return new CsoCompressResult(
             true,
@@ -22,7 +35,10 @@ public sealed record CsoCompressResult(
             bytesRead,
             bytesWritten,
             compressedBlocks,
-            storedBlocks);
+            storedBlocks,
+            codecWins,
+            codecTrialSummary,
+            zeroBlocks);
     }
 
     public static CsoCompressResult Fail(
@@ -31,7 +47,10 @@ public sealed record CsoCompressResult(
         ulong bytesRead = 0,
         ulong bytesWritten = 0,
         int compressedBlocks = 0,
-        int storedBlocks = 0)
+        int storedBlocks = 0,
+        IReadOnlyDictionary<string, int>? codecWins = null,
+        CodecTrialSummary? codecTrialSummary = null,
+        int zeroBlocks = 0)
     {
         return new CsoCompressResult(
             false,
@@ -40,6 +59,9 @@ public sealed record CsoCompressResult(
             bytesRead,
             bytesWritten,
             compressedBlocks,
-            storedBlocks);
+            storedBlocks,
+            codecWins,
+            codecTrialSummary,
+            zeroBlocks);
     }
 }

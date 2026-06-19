@@ -483,3 +483,23 @@ $RECYCLE.BIN/
 
 # Hakamiq release artifacts
 /artifacts/
+
+# Hakamiq local corpus, game images, and release byproducts
+
+*.iso
+*.cso
+*.zso
+*.dax
+*.chd
+*.cue
+*.gdi
+*.nrg
+*.img
+*.pkg
+*.zip
+*.tmp
+*.partial
+*.repair-report.txt
+*.verify-report.txt
+*.compress-report.txt
+*.decompress-report.txt

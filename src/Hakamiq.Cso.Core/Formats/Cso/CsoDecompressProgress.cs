@@ -1,4 +1,4 @@
-﻿namespace Hakamiq.Cso.Core.Formats.Cso;
+namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed record CsoDecompressProgress(
     int CompletedBlocks,

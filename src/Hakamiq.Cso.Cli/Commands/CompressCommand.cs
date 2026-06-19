@@ -24,7 +24,20 @@ public static class CompressCommand
 
         using CancellationTokenSource cancellation = new();
 
-        ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+        Console.CancelKeyPress += OnCancelKeyPress;
+
+        try
+        {
+            return options.Measure
+                ? RunMeasure(options, cancellation.Token)
+                : RunCompress(options, cancellation.Token);
+        }
+        finally
+        {
+            Console.CancelKeyPress -= OnCancelKeyPress;
+        }
+
+        void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs)
         {
             eventArgs.Cancel = true;
 
@@ -38,19 +51,6 @@ public static class CompressCommand
                     Console.Error.WriteLine("Cancellation requested. Cleaning up...");
                 }
             }
-        };
-
-        Console.CancelKeyPress += cancelHandler;
-
-        try
-        {
-            return options.Measure
-                ? RunMeasure(options, cancellation.Token)
-                : RunCompress(options, cancellation.Token);
-        }
-        finally
-        {
-            Console.CancelKeyPress -= cancelHandler;
         }
     }
 
@@ -75,12 +75,12 @@ public static class CompressCommand
         CsoMeasureEstimator estimator = new();
         CsoMeasureResult result = estimator.Measure(
             new CsoMeasureOptions(
-                options.InputPath,
-                options.BlockSize,
-                cancellationToken,
-                progress,
-                options.Profile,
-                options.UseZopfli));
+                InputPath: options.InputPath,
+                BlockSize: options.BlockSize,
+                Progress: progress,
+                Profile: options.Profile,
+                UseZopfli: options.UseZopfli,
+                CancellationToken: cancellationToken));
 
         progress?.FinishLine();
 
@@ -92,7 +92,10 @@ public static class CompressCommand
                 result,
                 options.BlockSize,
                 options.WorkerCount,
-                options.UseZopfli));
+                options.UseZopfli,
+                deepVerify: false,
+                codecReport: options.CodecReport,
+                codecReportBlockLimit: options.CodecReportBlockLimit));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -164,11 +167,14 @@ public static class CompressCommand
                 outputPath,
                 options.Force && !autoOutput,
                 options.BlockSize,
-                cancellationToken,
-                progress,
-                options.Profile,
-                options.WorkerCount,
-                options.UseZopfli));
+                Progress: progress,
+                Profile: options.Profile,
+                WorkerCount: options.WorkerCount,
+                UseZopfli: options.UseZopfli,
+                DeepVerifyOutput: options.DeepVerify,
+                CollectCodecReport: options.CodecReport,
+                CodecReportBlockLimit: options.CodecReportBlockLimit,
+                CancellationToken: cancellationToken));
 
         progress?.FinishLine();
 
@@ -183,7 +189,10 @@ public static class CompressCommand
                 result,
                 options.BlockSize,
                 options.WorkerCount,
-                options.UseZopfli));
+                options.UseZopfli,
+                options.DeepVerify,
+                options.CodecReport,
+                options.CodecReportBlockLimit));
 
             return result.Success
                 ? CliExitCodes.Success
@@ -201,6 +210,11 @@ public static class CompressCommand
                 Console.WriteLine($"Stored blocks: {result.StoredBlocks:N0}");
                 PrintProfileSummary(profileSettings);
                 PrintCompressionOptions(options);
+
+                if (options.CodecReport)
+                {
+                    PrintCodecReport(result.EffectiveCodecWins);
+                }
             }
 
             return CliExitCodes.Success;
@@ -239,6 +253,9 @@ public static class CompressCommand
         uint blockSize = CsoCompressor.DefaultBlockSize;
         int workerCount = Math.Max(1, Environment.ProcessorCount);
         bool useZopfli = false;
+        bool deepVerify = false;
+        bool codecReport = false;
+        int codecReportBlockLimit = 64;
         CsoCompressionProfile profile = CsoCompressionProfilePolicy.DefaultProfile;
 
         for (int index = 1; index < args.Length; index++)
@@ -305,6 +322,36 @@ public static class CompressCommand
                 string.Equals(arg, "--use-zopfli", StringComparison.OrdinalIgnoreCase))
             {
                 useZopfli = true;
+                continue;
+            }
+
+            if (string.Equals(arg, "--deep-verify", StringComparison.OrdinalIgnoreCase))
+            {
+                deepVerify = true;
+                continue;
+            }
+
+            if (string.Equals(arg, "--codec-report", StringComparison.OrdinalIgnoreCase))
+            {
+                codecReport = true;
+                continue;
+            }
+
+            if (TryConsumeOptionValue(args, ref index, "--codec-report-block-limit", out string? codecReportBlockLimitValue, out errorMessage))
+            {
+                if (errorMessage is not null)
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(codecReportBlockLimitValue, out int parsedCodecReportBlockLimit) ||
+                    parsedCodecReportBlockLimit < 0)
+                {
+                    errorMessage = "--codec-report-block-limit must be zero or a positive integer.";
+                    return false;
+                }
+
+                codecReportBlockLimit = parsedCodecReportBlockLimit;
                 continue;
             }
 
@@ -405,7 +452,10 @@ public static class CompressCommand
             profile,
             blockSize,
             workerCount,
-            useZopfli);
+            useZopfli,
+            deepVerify || profile == CsoCompressionProfile.GameSafe,
+            codecReport,
+            codecReportBlockLimit);
 
         return true;
     }
@@ -501,10 +551,10 @@ public static class CompressCommand
             "OutputAlreadyExists" => CliExitCodes.OutputAlreadyExists,
             "NotEnoughDiskSpace" => CliExitCodes.NotEnoughDiskSpace,
             "OperationCanceled" => CliExitCodes.OperationCanceled,
-            "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" or "InvalidInputSize" => CliExitCodes.CannotWriteOutput,
+            "SameInputOutputPath" or "OutputPathIsDirectory" or "OutputDirectoryNotFound" or "InvalidOutputPath" => CliExitCodes.CannotWriteOutput,
             "OutputAccessDenied" or "CompressionIoFailed" or "OutputDriveCheckFailed" or "OutputDriveNotReady" or "OutputDriveNotFound" => CliExitCodes.CannotWriteOutput,
             "InputAccessDenied" or "MeasureIoFailed" => CliExitCodes.CannotWriteOutput,
-            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" => CliExitCodes.InvalidCsoHeader,
+            "InvalidBlockSize" or "BlockSizeTooLarge" or "InvalidThreadCount" or "InvalidCodecReportBlockLimit" or "InvalidInputSize" => CliExitCodes.InvalidCsoHeader,
             _ => CliExitCodes.CompressionFailed
         };
     }
@@ -523,7 +573,15 @@ public static class CompressCommand
 
     private static bool HasJsonFlag(string[] args)
     {
-        return args.Any(static arg => string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase));
+        for (int index = 0; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void PrintProfileSummary(CsoCompressionProfileSettings profileSettings)
@@ -552,6 +610,26 @@ public static class CompressCommand
         writer.WriteLine($"Block size: {options.BlockSize:N0}");
         writer.WriteLine($"Threads: {options.WorkerCount:N0}");
         writer.WriteLine($"Zopfli: {options.UseZopfli.ToString().ToLowerInvariant()}");
+        writer.WriteLine($"Deep verify: {options.DeepVerify.ToString().ToLowerInvariant()}");
+
+        if (options.CodecReport)
+        {
+            writer.WriteLine($"Codec report block limit: {options.CodecReportBlockLimit:N0}");
+        }
+    }
+
+    private static void PrintCodecReport(IReadOnlyDictionary<string, int> codecWins)
+    {
+        Console.WriteLine("Codec wins:");
+
+        List<KeyValuePair<string, int>> orderedCodecWins = [.. codecWins];
+        orderedCodecWins.Sort(static (left, right) =>
+            StringComparer.OrdinalIgnoreCase.Compare(left.Key, right.Key));
+
+        foreach (KeyValuePair<string, int> item in orderedCodecWins)
+        {
+            Console.WriteLine($"  {item.Key}: {item.Value:N0}");
+        }
     }
 
     private static void PrintUsage(string? errorMessage = null)
@@ -561,7 +639,7 @@ public static class CompressCommand
             Console.Error.WriteLine(errorMessage);
         }
 
-        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--force] [--quiet] [--json]");
+        Console.Error.WriteLine($"Usage: hakamiq-cso compress <input.iso> [-o <output.cso>] [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--threads <n>] [--block <bytes>] [--zopfli] [--deep-verify] [--codec-report] [--codec-report-block-limit <n>] [--force] [--quiet] [--json]");
         Console.Error.WriteLine($"       hakamiq-cso compress <input.iso> --measure [--profile <{CsoCompressionProfilePolicy.SupportedNamesText}>] [--fast] [--block <bytes>] [--zopfli] [--quiet] [--json]");
     }
 
@@ -575,7 +653,10 @@ public static class CompressCommand
         CsoCompressionProfile Profile,
         uint BlockSize,
         int WorkerCount,
-        bool UseZopfli);
+        bool UseZopfli,
+        bool DeepVerify,
+        bool CodecReport,
+        int CodecReportBlockLimit);
 
     private sealed class ConsoleCompressProgress : IProgress<CsoCompressProgress>
     {

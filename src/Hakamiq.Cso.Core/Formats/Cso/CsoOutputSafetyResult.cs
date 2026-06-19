@@ -1,4 +1,4 @@
-﻿namespace Hakamiq.Cso.Core.Formats.Cso;
+namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed record CsoOutputSafetyResult(
     bool Success,
@@ -12,6 +12,9 @@ public sealed record CsoOutputSafetyResult(
 
     public static CsoOutputSafetyResult Fail(string errorCode, string errorMessage)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+
         return new CsoOutputSafetyResult(false, errorCode, errorMessage);
     }
 }

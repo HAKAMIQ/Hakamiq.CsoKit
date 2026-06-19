@@ -2,7 +2,9 @@ namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public enum CsoCompressionProfile
 {
-    Compat = 0,
-    Fast = 1,
-    Smallest = 2,
+    GameSafe = 0,
+    Compat = 1,
+    Fast = 2,
+    Smallest = 3,
+    ArchiveSmallest = 4,
 }

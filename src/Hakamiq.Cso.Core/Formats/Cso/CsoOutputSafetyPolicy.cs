@@ -1,7 +1,13 @@
-﻿namespace Hakamiq.Cso.Core.Formats.Cso;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed class CsoOutputSafetyPolicy
 {
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Keep the instance API stable for existing CLI/core callers.")]
     public CsoOutputSafetyResult Validate(
         string inputPath,
         string outputPath,

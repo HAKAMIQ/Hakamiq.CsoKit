@@ -1,9 +1,6 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Hakamiq.Cso.Cli/Hakamiq.Cso.Cli.csproj" />
-    <Project Path="src/Hakamiq.Cso.Core/Hakamiq.Cso.Core.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/Hakamiq.Cso.Tests/Hakamiq.Cso.Tests.csproj" />
-  </Folder>
+  <Project Path="src\Hakamiq.Cso.Core\Hakamiq.Cso.Core.csproj" />
+  <Project Path="src\Hakamiq.Cso.Cli\Hakamiq.Cso.Cli.csproj" />
+  <Project Path="src\Hakamiq.Cso.App\Hakamiq.Cso.App.csproj" />
+  <Project Path="tests\Hakamiq.Cso.Tests\Hakamiq.Cso.Tests.csproj" />
 </Solution>

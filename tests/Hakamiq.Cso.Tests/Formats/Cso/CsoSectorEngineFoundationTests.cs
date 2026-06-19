@@ -31,20 +31,20 @@ public sealed class CsoSectorEngineFoundationTests
     [Fact]
     public void CsoBlockReader_ReadExactlyOrLess_ReadsRequestedBytes()
     {
-        byte[] source = new byte[] { 1, 2, 3, 4, 5 };
+        byte[] source = [1, 2, 3, 4, 5];
         byte[] destination = new byte[3];
 
         using MemoryStream stream = new(source);
         int read = CsoBlockReader.ReadExactlyOrLess(stream, destination);
 
         Assert.Equal(3, read);
-        Assert.Equal(new byte[] { 1, 2, 3 }, destination);
+        Assert.Equal([1, 2, 3], destination);
     }
 
     [Fact]
     public void SectorJob_StoresBlockIdentityAndSourceRange()
     {
-        byte[] source = new byte[] { 10, 20, 30, 40 };
+        byte[] source = [10, 20, 30, 40];
         SectorJob job = new(
             BlockIndex: 7,
             SourceOffset: 2048,
@@ -54,7 +54,7 @@ public sealed class CsoSectorEngineFoundationTests
         Assert.Equal(7, job.BlockIndex);
         Assert.Equal(2048UL, job.SourceOffset);
         Assert.Equal(3, job.SourceLength);
-        Assert.Equal(new byte[] { 10, 20, 30 }, job.SourceSpan.ToArray());
+        Assert.Equal([10, 20, 30], job.SourceSpan.ToArray());
     }
 
     [Fact]
@@ -68,11 +68,11 @@ public sealed class CsoSectorEngineFoundationTests
             IsStored: false,
             Method: CompressionMethod.RawDeflate,
             Level: 9,
-            Buffer: new byte[] { 80, 90, 100 });
+            Buffer: [80, 90, 100]);
 
         Assert.Equal(2, result.BlockIndex);
         Assert.False(result.IsStored);
         Assert.Equal(CompressionMethod.RawDeflate, result.Method);
-        Assert.Equal(new byte[] { 80, 90 }, result.OutputSpan.ToArray());
+        Assert.Equal([80, 90], result.OutputSpan.ToArray());
     }
 }

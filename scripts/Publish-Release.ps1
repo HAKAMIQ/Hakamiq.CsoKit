@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-[string]$Version = "0.5.0",
+[string]$Version = "0.6.0",
 [string]$Runtime = "win-x64"
 )
 
@@ -188,7 +188,7 @@ if ($LASTEXITCODE -ne 0) {
 throw "Help smoke test failed."
 }
 
-foreach ($required in @("info", "verify", "decompress", "compress", "native-info", "--json", "--quiet", "--profile", "--threads", "--block", "--zopfli", "compat|fast|smallest")) {
+foreach ($required in @("info", "verify", "repair", "analyze", "detect", "decompress", "compress", "codecs", "native-info", "--json", "--quiet", "--profile", "--threads", "--block", "--zopfli", "--codec-report", "game-safe|compat|fast|smallest|archive-smallest")) {
 if ($helpText -notmatch [regex]::Escape($required)) {
 throw "Help output does not contain required text: $required"
 }
@@ -209,6 +209,18 @@ throw "native-info did not report native backend."
 if ($nativeInfoOutput -notmatch "Native available:\s+True") {
 Write-Host $nativeInfoOutput
 throw "native-info did not report native availability."
+}
+
+foreach ($requiredCapability in @(
+"Native zlib:\s+available",
+"Native libdeflate:\s+available",
+"Native Zopfli:\s+available",
+"LZ4 decode:\s+available"
+)) {
+if ($nativeInfoOutput -notmatch $requiredCapability) {
+Write-Host $nativeInfoOutput
+throw "native-info did not report required codec capability: $requiredCapability"
+}
 }
 
 Write-Host "[8/8] SHA256 manifest and ZIP"

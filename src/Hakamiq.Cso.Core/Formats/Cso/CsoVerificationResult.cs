@@ -10,7 +10,10 @@ public sealed record CsoVerificationResult(
         CsoHeader header,
         IReadOnlyList<CsoIndexEntry> entries)
     {
-        return new CsoVerificationResult(true, header, entries, Array.Empty<CsoVerificationIssue>());
+        ArgumentNullException.ThrowIfNull(header);
+        ArgumentNullException.ThrowIfNull(entries);
+
+        return new CsoVerificationResult(true, header, entries, []);
     }
 
     public static CsoVerificationResult Fail(
@@ -18,6 +21,9 @@ public sealed record CsoVerificationResult(
         IReadOnlyList<CsoIndexEntry> entries,
         IReadOnlyList<CsoVerificationIssue> issues)
     {
+        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(issues);
+
         return new CsoVerificationResult(false, header, entries, issues);
     }
 }

@@ -1,3 +1,5 @@
+using Hakamiq.Cso.Core.Compression.Trials;
+
 namespace Hakamiq.Cso.Core.Formats.Cso;
 
 public sealed record SectorResult(
@@ -8,7 +10,15 @@ public sealed record SectorResult(
     bool IsStored,
     CompressionMethod Method,
     int Level,
-    byte[] Buffer)
+    byte[] Buffer,
+    string CodecName = "",
+    CodecTrialReport? TrialReport = null,
+    CodecTrialDecisionMetrics? DecisionMetrics = null,
+    bool SourceIsAllZero = false)
 {
     public ReadOnlySpan<byte> OutputSpan => Buffer.AsSpan(0, OutputLength);
+
+    public string EffectiveCodecName => string.IsNullOrWhiteSpace(CodecName)
+        ? Method.ToString().ToLowerInvariant()
+        : CodecName;
 }
